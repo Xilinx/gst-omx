@@ -32,12 +32,14 @@
 #include "gstomxmpeg2videodec.h"
 #include "gstomxmpeg4videodec.h"
 #include "gstomxh264dec.h"
+#include "gstomxh265dec.h"
 #include "gstomxh263dec.h"
 #include "gstomxvp8dec.h"
 #include "gstomxtheoradec.h"
 #include "gstomxwmvdec.h"
 #include "gstomxmpeg4videoenc.h"
 #include "gstomxh264enc.h"
+#include "gstomxh265enc.h"
 #include "gstomxh263enc.h"
 #include "gstomxaacdec.h"
 #include "gstomxmp3dec.h"
@@ -2246,7 +2248,7 @@ static const GGetTypeFunction types[] = {
   gst_omx_h264_dec_get_type, gst_omx_h263_dec_get_type,
   gst_omx_wmv_dec_get_type, gst_omx_mpeg4_video_enc_get_type,
   gst_omx_h264_enc_get_type, gst_omx_h263_enc_get_type,
-  gst_omx_aac_enc_get_type, gst_omx_mjpeg_dec_get_type,
+  gst_omx_h265_enc_get_type, gst_omx_aac_enc_get_type, gst_omx_mjpeg_dec_get_type,
   gst_omx_aac_dec_get_type, gst_omx_mp3_dec_get_type
 #ifdef HAVE_VP8
       , gst_omx_vp8_dec_get_type

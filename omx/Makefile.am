@@ -32,8 +32,7 @@ libgstomx_la_SOURCES = \
 	$(VP8_C_FILES) \
 	$(THEORA_C_FILES) \
 	gstomxmpeg4videoenc.c \
-	$(H265_C_FILES) \
-	$(H265_H_FILES) \
+	gstomxh265enc.c \
 	gstomxh264enc.c \
 	gstomxh263enc.c \
 	gstomxaacdec.c \
@@ -41,7 +40,7 @@ libgstomx_la_SOURCES = \
 	gstomxaacenc.c \
 	gstomxaudiosink.c \
 	gstomxanalogaudiosink.c \
-	gstomxhdmiaudiosink.c	
+	gstomxhdmiaudiosink.c
 
 noinst_HEADERS = \
 	gstomx.h \
@@ -60,6 +59,7 @@ noinst_HEADERS = \
 	$(VP8_H_FILES) \
 	$(THEORA_H_FILES) \
 	gstomxmpeg4videoenc.h \
+	gstomxh265enc.h \
 	gstomxh264enc.h \
 	gstomxh263enc.h \
 	gstomxaacdec.h \
@@ -67,7 +67,7 @@ noinst_HEADERS = \
 	gstomxaacenc.h \
 	gstomxaudiosink.h \
 	gstomxanalogaudiosink.h \
-	gstomxhdmiaudiosink.h 	
+	gstomxhdmiaudiosink.h
 
 if !HAVE_EXTERNAL_OMX
 OMX_INCLUDEPATH = -I$(abs_srcdir)/openmax
