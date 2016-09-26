@@ -284,6 +284,54 @@ typedef struct OMX_VIDEO_SLICESEGMENTSTYPE {
     OMX_BOOL bEnableLoopFilterAcrossSlices;
 } OMX_VIDEO_SLICESEGMENTSTYPE;
 
+#ifdef USE_OMX_TARGET_ZYNQ_USCALE_PLUS
+// Use Board
+#ifndef bUSELIBREF
+#define bUSELIBREF true
+#endif
+
+/**
+ *
+ * Define Index Param Video
+ *
+ */
+typedef enum AL_INDEX_PARAM_VIDEO_TYPE
+{
+  OMX_IndexParamVideoHevc = OMX_IndexVendorStartUnused,
+  OMX_IndexParamVideoEnableBoard,
+  OMX_IndexParamVideoEnableMCU,
+  OMX_IndexParamVideoEnableDMA,
+}AL_INDEX_PARAM_VIDEO_TYPE;
+
+#define OMX_AL_CUSTOMPARAM_ENABLE_BOARD "OMX.allegro.enableBoard"
+#define OMX_AL_CUSTOMPARAM_ENABLE_MCU "OMX.allegro.enableMCU"
+
+typedef struct OMX_VIDEO_PARAM_ENABLEMCU
+{
+  OMX_U32 nSize;
+  OMX_VERSIONTYPE nVersion;
+  OMX_BOOL bEnable;
+}OMX_VIDEO_PARAM_ENABLEMCU;
+
+#define OMX_AL_CUSTOMPARAM_ENABLE_DMA "OMX.allegro.linux.enableDMA"
+
+typedef struct OMX_VIDEO_PARAM_ENABLEDMABUFFER
+{
+  OMX_U32 nSize;
+  OMX_VERSIONTYPE nVersion;
+  OMX_U32 nPortIndex;
+  OMX_BOOL bEnable;
+}OMX_VIDEO_PARAM_ENABLEDMABUFFER;
+
+typedef struct OMX_VIDEO_PARAM_ENABLEBOARD
+{
+  OMX_U32 nSize;
+  OMX_VERSIONTYPE nVersion;
+  OMX_BOOL bEnable;
+}OMX_VIDEO_PARAM_ENABLEBOARD;
+
+#endif
+
 #ifdef __cplusplus
 }
 #endif /* __cplusplus */
