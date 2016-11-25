@@ -613,9 +613,15 @@ gst_omx_video_enc_handle_output_frame (GstOMXVideoEnc * self, GstOMXPort * port,
       outbuf = gst_buffer_new_and_alloc (buf->omx_buf->nFilledLen);
 
       gst_buffer_map (outbuf, &map, GST_MAP_WRITE);
+
+      /* FIXME: Instead of copying GstOMXbuffer into GstBuffer, Lets just assign pointer
+         of GstOMXBuffer to GstBuffer, Need support of GstBufferPool, Ref implementation is
+         there in gstomxvideodec.c */
+
       memcpy (map.data,
           buf->omx_buf->pBuffer + buf->omx_buf->nOffset,
           buf->omx_buf->nFilledLen);
+
       gst_buffer_unmap (outbuf, &map);
     } else {
       outbuf = gst_buffer_new ();
@@ -1164,8 +1170,31 @@ gst_omx_video_enc_set_format (GstVideoEncoder * encoder,
         return FALSE;
 
       /* Need to allocate buffers to reach Idle state */
-      if (gst_omx_port_allocate_buffers (self->enc_in_port) != OMX_ErrorNone)
+
+      /* Moving from OMX_AllocateBuffers to  OMX_UseBuffers,
+         Idea is to give address of GstBuffer's data received from previos element in pipeline
+         to GstOMXBuffer's data pointer. But at _set_format stage we do not have those GstBuffer
+         So below is hack of dummpy memory for OMX component initializing */
+
+      /* if (gst_omx_port_allocate_buffers (self->enc_in_port) != OMX_ErrorNone)
+         return FALSE; */
+
+      GstMapInfo info;
+      GstBuffer *mem = gst_buffer_new_allocate (NULL, 1024, NULL);
+      gst_buffer_map (mem, &info, GST_MAP_READ);
+
+      GList *buffer_list = NULL;
+      buffer_list = g_list_append (buffer_list, info.data);
+      buffer_list = g_list_append (buffer_list, info.data);
+
+      if (gst_omx_port_use_buffers (self->enc_in_port,
+              buffer_list) != OMX_ErrorNone)
         return FALSE;
+
+      gst_buffer_unmap (mem, &info);
+      gst_buffer_unref (mem);
+      g_list_free (buffer_list);
+
       if (gst_omx_port_allocate_buffers (self->enc_out_port) != OMX_ErrorNone)
         return FALSE;
     }
@@ -1265,9 +1294,20 @@ gst_omx_video_enc_fill_buffer (GstOMXVideoEnc * self, GstBuffer * inbuf,
       outbuf->omx_buf->nAllocLen - outbuf->omx_buf->nOffset) {
     outbuf->omx_buf->nFilledLen = gst_buffer_get_size (inbuf);
 
-    gst_buffer_extract (inbuf, 0,
-        outbuf->omx_buf->pBuffer + outbuf->omx_buf->nOffset,
-        outbuf->omx_buf->nFilledLen);
+    /* Instead of copying GstOMXBuffer to GstBuffer,
+       Updating data pointer of GstOMXBuffer with GstBuffer data pointer */
+
+    /* gst_buffer_extract (inbuf, 0,
+       outbuf->omx_buf->pBuffer + outbuf->omx_buf->nOffset,
+       outbuf->omx_buf->nFilledLen); */
+
+    GstMapInfo map = GST_MAP_INFO_INIT;
+    if (!gst_buffer_map (inbuf, &map, GST_MAP_READ)) {
+      GST_ERROR_OBJECT (self, "Failed to map input buffer");
+    }
+    outbuf->omx_buf->pBuffer = map.data;
+    gst_buffer_unmap (inbuf, &map);
+
     ret = TRUE;
     goto done;
   }
