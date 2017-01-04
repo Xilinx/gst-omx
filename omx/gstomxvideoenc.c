@@ -96,7 +96,8 @@ enum
   PROP_TARGET_BITRATE,
   PROP_QUANT_I_FRAMES,
   PROP_QUANT_P_FRAMES,
-  PROP_QUANT_B_FRAMES
+  PROP_QUANT_B_FRAMES,
+  PROP_STRIDE
 };
 
 /* FIXME: Better defaults */
@@ -162,6 +163,12 @@ gst_omx_video_enc_class_init (GstOMXVideoEncClass * klass)
           0, G_MAXUINT, GST_OMX_VIDEO_ENC_QUANT_B_FRAMES_DEFAULT,
           G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS |
           GST_PARAM_MUTABLE_READY));
+
+  g_object_class_install_property (gobject_class, PROP_STRIDE,
+      g_param_spec_boolean ("stride", "stride of Encoder input",
+          "stride of Encoder's raw input data, "
+          "Enable it when Decoder's o/p(with stride) given to Encoder", FALSE,
+          G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
 
   element_class->change_state =
       GST_DEBUG_FUNCPTR (gst_omx_video_enc_change_state);
@@ -470,6 +477,9 @@ gst_omx_video_enc_set_property (GObject * object, guint prop_id,
     case PROP_QUANT_B_FRAMES:
       self->quant_b_frames = g_value_get_uint (value);
       break;
+    case PROP_STRIDE:
+      self->stride = g_value_get_boolean (value);
+      break;
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
       break;
@@ -497,6 +507,9 @@ gst_omx_video_enc_get_property (GObject * object, guint prop_id, GValue * value,
       break;
     case PROP_QUANT_B_FRAMES:
       g_value_set_uint (value, self->quant_b_frames);
+      break;
+    case PROP_STRIDE:
+      g_value_set_boolean (value, self->stride);
       break;
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
@@ -1053,6 +1066,9 @@ gst_omx_video_enc_set_format (GstVideoEncoder * encoder,
   }
 
   port_def.format.video.nFrameWidth = info->width;
+  if (self->stride) {
+    port_def.nBufferAlignment = 256;
+  }
   if (port_def.nBufferAlignment)
     port_def.format.video.nStride =
         (info->width + port_def.nBufferAlignment - 1) &
@@ -1061,7 +1077,11 @@ gst_omx_video_enc_set_format (GstVideoEncoder * encoder,
     port_def.format.video.nStride = GST_ROUND_UP_4 (info->width);       /* safe (?) default */
 
   port_def.format.video.nFrameHeight = info->height;
-  port_def.format.video.nSliceHeight = info->height;
+  if (self->stride) {
+    port_def.format.video.nSliceHeight = GST_ROUND_UP_64 (info->height);
+  } else {
+    port_def.format.video.nSliceHeight = info->height;
+  }
 
   switch (port_def.format.video.eColorFormat) {
     case OMX_COLOR_FormatYUV420Planar:
