@@ -938,8 +938,8 @@ gst_omx_video_dec_deallocate_output_buffers (GstOMXVideoDec * self)
   }
 #if defined (USE_OMX_TARGET_RPI) && defined (HAVE_GST_GL)
   err =
-      gst_omx_port_deallocate_buffers (self->
-      eglimage ? self->egl_out_port : self->dec_out_port);
+      gst_omx_port_deallocate_buffers (self->eglimage ? self->
+      egl_out_port : self->dec_out_port);
 #else
   err = gst_omx_port_deallocate_buffers (self->dec_out_port);
 #endif
@@ -1336,8 +1336,8 @@ gst_omx_video_dec_loop (GstOMXVideoDec * self)
           OMX_VIDEO_CodingUnused);
 
       format =
-          gst_omx_video_get_format_from_omx (port_def.format.
-          video.eColorFormat);
+          gst_omx_video_get_format_from_omx (port_def.format.video.
+          eColorFormat);
 
       if (format == GST_VIDEO_FORMAT_UNKNOWN) {
         GST_ERROR_OBJECT (self, "Unsupported color format: %d",
@@ -1846,6 +1846,10 @@ gst_omx_video_dec_set_format (GstVideoDecoder * decoder,
   gboolean is_format_change = FALSE;
   gboolean needs_disable = FALSE;
   OMX_PARAM_PORTDEFINITIONTYPE port_def;
+  GList *buffer_list = NULL;
+  GstMapInfo map_info;
+  GstBuffer *mem = NULL;
+  gint i;
 
   self = GST_OMX_VIDEO_DEC (decoder);
   klass = GST_OMX_VIDEO_DEC_GET_CLASS (decoder);
@@ -2063,19 +2067,19 @@ gst_omx_video_dec_set_format (GstVideoDecoder * decoder,
       /* if (gst_omx_port_allocate_buffers (self->dec_in_port) != OMX_ErrorNone)
          return FALSE; */
 
-      GstMapInfo info;
-      GstBuffer *mem = gst_buffer_new_allocate (NULL, 1024, NULL);
-      gst_buffer_map (mem, &info, GST_MAP_READ);
+      mem = gst_buffer_new_allocate (NULL, 1024, NULL);
+      gst_buffer_map (mem, &map_info, GST_MAP_READ);
 
-      GList *buffer_list = NULL;
-      buffer_list = g_list_append (buffer_list, info.data);
-      buffer_list = g_list_append (buffer_list, info.data);
+      gst_omx_port_update_port_definition (self->dec_in_port, NULL);
+
+      for (i = 0; i < self->dec_in_port->port_def.nBufferCountActual; i++)
+        buffer_list = g_list_append (buffer_list, map_info.data);
 
       if (gst_omx_port_use_buffers (self->dec_in_port,
               buffer_list) != OMX_ErrorNone)
         return FALSE;
 
-      gst_buffer_unmap (mem, &info);
+      gst_buffer_unmap (mem, &map_info);
       gst_buffer_unref (mem);
       g_list_free (buffer_list);
 

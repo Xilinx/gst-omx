@@ -982,6 +982,11 @@ gst_omx_video_enc_set_format (GstVideoEncoder * encoder,
   OMX_PARAM_PORTDEFINITIONTYPE port_def;
   GstVideoInfo *info = &state->info;
   GList *negotiation_map = NULL, *l;
+  GList *buffer_list = NULL;
+  GstMapInfo map_info;
+  GstBuffer *mem = NULL;
+  gint i;
+
 
   self = GST_OMX_VIDEO_ENC (encoder);
   klass = GST_OMX_VIDEO_ENC_GET_CLASS (encoder);
@@ -1199,19 +1204,19 @@ gst_omx_video_enc_set_format (GstVideoEncoder * encoder,
       /* if (gst_omx_port_allocate_buffers (self->enc_in_port) != OMX_ErrorNone)
          return FALSE; */
 
-      GstMapInfo info;
-      GstBuffer *mem = gst_buffer_new_allocate (NULL, 1024, NULL);
-      gst_buffer_map (mem, &info, GST_MAP_READ);
+      mem = gst_buffer_new_allocate (NULL, 1024, NULL);
+      gst_buffer_map (mem, &map_info, GST_MAP_READ);
 
-      GList *buffer_list = NULL;
-      buffer_list = g_list_append (buffer_list, info.data);
-      buffer_list = g_list_append (buffer_list, info.data);
+      gst_omx_port_update_port_definition (self->enc_in_port, NULL);
+
+      for (i = 0; i < self->enc_in_port->port_def.nBufferCountActual; i++)
+        buffer_list = g_list_append (buffer_list, map_info.data);
 
       if (gst_omx_port_use_buffers (self->enc_in_port,
               buffer_list) != OMX_ErrorNone)
         return FALSE;
 
-      gst_buffer_unmap (mem, &info);
+      gst_buffer_unmap (mem, &map_info);
       gst_buffer_unref (mem);
       g_list_free (buffer_list);
 
