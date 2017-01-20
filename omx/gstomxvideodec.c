@@ -155,7 +155,7 @@ gst_omx_video_dec_open (GstVideoDecoder * decoder)
   OMX_VIDEO_PARAM_ENABLEBOARD enable_board;
   OMX_VIDEO_PARAM_ENABLEDMABUFFER enable_dmabuf;
   OMX_VIDEO_PARAM_ENABLEMCU enable_mcu;
-  static int use_dmabuf = 0, use_mcu = 1, use_board = 0;
+  static int use_dmabuf = 1, use_mcu = 1, use_board = 0;
 #endif
 
   GST_DEBUG_OBJECT (self, "Opening decoder");
@@ -214,6 +214,7 @@ gst_omx_video_dec_open (GstVideoDecoder * decoder)
 
   memset (&enable_dmabuf, 0, sizeof (enable_dmabuf));
   enable_dmabuf.bEnable = (OMX_BOOL) use_dmabuf;
+  enable_dmabuf.nPortIndex = 1;
   OMX_SetParameter (self->dec->handle, DMAtype, &enable_dmabuf);
 
   OMX_GetExtensionIndex (self->dec->handle,

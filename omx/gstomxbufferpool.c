@@ -25,6 +25,8 @@
 #endif
 
 #include "gstomxbufferpool.h"
+#include "gst/allocators/gstdmabuf.h"
+#include <fcntl.h>
 
 GST_DEBUG_CATEGORY_STATIC (gst_omx_buffer_pool_debug_category);
 #define GST_CAT_DEFAULT gst_omx_buffer_pool_debug_category
@@ -32,6 +34,8 @@ GST_DEBUG_CATEGORY_STATIC (gst_omx_buffer_pool_debug_category);
 typedef struct _GstOMXMemory GstOMXMemory;
 typedef struct _GstOMXMemoryAllocator GstOMXMemoryAllocator;
 typedef struct _GstOMXMemoryAllocatorClass GstOMXMemoryAllocatorClass;
+
+guint use_dma = 0;
 
 struct _GstOMXMemory
 {
@@ -389,10 +393,21 @@ gst_omx_buffer_pool_alloc_buffer (GstBufferPool * bpool,
     gsize offset[GST_VIDEO_MAX_PLANES] = { 0, };
     gint stride[GST_VIDEO_MAX_PLANES] = { nstride, 0, };
 
-    mem = gst_omx_memory_allocator_alloc (pool->allocator, 0, omx_buf);
-    buf = gst_buffer_new ();
-    gst_buffer_append_memory (buf, mem);
-    g_ptr_array_add (pool->buffers, buf);
+
+    int fd = (int) (guintptr) omx_buf->omx_buf->pBuffer;
+
+    if (fcntl (fd, F_GETFL) < 0 && errno == EBADF) {
+      use_dma = 0;
+    } else {
+      use_dma = 1;
+    }
+
+    if (!use_dma) {
+      mem = gst_omx_memory_allocator_alloc (pool->allocator, 0, omx_buf);
+      buf = gst_buffer_new ();
+      gst_buffer_append_memory (buf, mem);
+      g_ptr_array_add (pool->buffers, buf);
+    }
 
     switch (GST_VIDEO_INFO_FORMAT (&pool->video_info)) {
       case GST_VIDEO_FORMAT_ABGR:
@@ -420,38 +435,50 @@ gst_omx_buffer_pool_alloc_buffer (GstBufferPool * bpool,
         break;
     }
 
-    if (pool->add_videometa) {
-      pool->need_copy = FALSE;
-    } else {
-      GstVideoInfo info;
-      gboolean need_copy = FALSE;
-      gint i;
+    if (use_dma) {
+      gst_object_unref (pool->allocator);
+      pool->allocator = gst_dmabuf_allocator_new ();
+      buf = gst_buffer_new ();
+      mem = gst_dmabuf_allocator_alloc (pool->allocator, fd,
+		      omx_buf->omx_buf->nAllocLen);
+      mem->offset = 0;
+      mem->size = omx_buf->omx_buf->nAllocLen;
+      gst_buffer_append_memory (buf, mem);
+      g_ptr_array_add (pool->buffers, buf);
+     } else {
+       if (pool->add_videometa) {
+	 pool->need_copy = FALSE;
+       } else {
+	 GstVideoInfo info;
+	 gboolean need_copy = FALSE;
+	 gint i;
 
-      gst_video_info_init (&info);
-      gst_video_info_set_format (&info,
-          GST_VIDEO_INFO_FORMAT (&pool->video_info),
-          GST_VIDEO_INFO_WIDTH (&pool->video_info),
-          GST_VIDEO_INFO_HEIGHT (&pool->video_info));
+	 gst_video_info_init (&info);
+	 gst_video_info_set_format (&info,
+	     GST_VIDEO_INFO_FORMAT (&pool->video_info),
+	     GST_VIDEO_INFO_WIDTH (&pool->video_info),
+	     GST_VIDEO_INFO_HEIGHT (&pool->video_info));
 
-      for (i = 0; i < GST_VIDEO_INFO_N_PLANES (&pool->video_info); i++) {
-        if (info.stride[i] != stride[i] || info.offset[i] != offset[i]) {
-          need_copy = TRUE;
-          break;
-        }
-      }
+	 for (i = 0; i < GST_VIDEO_INFO_N_PLANES (&pool->video_info); i++) {
+	   if (info.stride[i] != stride[i] || info.offset[i] != offset[i]) {
+	     need_copy = TRUE;
+	     break;
+	   }
+	 }
 
-      pool->need_copy = need_copy;
-    }
+	 pool->need_copy = need_copy;
+       }
 
-    if (pool->need_copy || pool->add_videometa) {
-      /* We always add the videometa. It's the job of the user
-       * to copy the buffer if pool->need_copy is TRUE
-       */
-      gst_buffer_add_video_meta_full (buf, GST_VIDEO_FRAME_FLAG_NONE,
-          GST_VIDEO_INFO_FORMAT (&pool->video_info),
-          GST_VIDEO_INFO_WIDTH (&pool->video_info),
-          GST_VIDEO_INFO_HEIGHT (&pool->video_info),
-          GST_VIDEO_INFO_N_PLANES (&pool->video_info), offset, stride);
+       if (pool->need_copy || pool->add_videometa) {
+	 /* We always add the videometa. It's the job of the user
+	  * to copy the buffer if pool->need_copy is TRUE
+	  */
+	 gst_buffer_add_video_meta_full (buf, GST_VIDEO_FRAME_FLAG_NONE,
+	     GST_VIDEO_INFO_FORMAT (&pool->video_info),
+	     GST_VIDEO_INFO_WIDTH (&pool->video_info),
+	     GST_VIDEO_INFO_HEIGHT (&pool->video_info),
+	     GST_VIDEO_INFO_N_PLANES (&pool->video_info), offset, stride);
+       }
     }
   }
 
@@ -503,7 +530,7 @@ gst_omx_buffer_pool_acquire_buffer (GstBufferPool * bpool,
     ret = GST_FLOW_OK;
 
     /* If it's our own memory we have to set the sizes */
-    if (!pool->other_pool) {
+    if (!pool->other_pool && !use_dma) {
       GstMemory *mem = gst_buffer_peek_memory (*buffer, 0);
 
       g_assert (mem
