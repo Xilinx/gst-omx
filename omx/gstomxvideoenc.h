@@ -77,9 +77,21 @@ struct _GstOMXVideoEnc
   guint32 quant_p_frames;
   guint32 quant_b_frames;
   guint32 stride;
+  guint32 input_mode;
 
   GstFlowReturn downstream_flow_ret;
 };
+
+/**
+ * Enumeration of possible mode available for input mode of encoder
+ */
+typedef enum OMX_ENCODER_INPUTMODETYPE {
+    OMX_Enc_InputMode_DefaultImplementation,
+    OMX_Enc_InputMode_ZeroCopy,
+    OMX_Enc_InputMode_DMABufImport,
+    OMX_Enc_InputMode_DMABufExport
+} OMX_ENCODER_INPUTMODETYPE;
+
 
 struct _GstOMXVideoEncClass
 {
