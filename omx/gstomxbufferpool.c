@@ -445,6 +445,12 @@ gst_omx_buffer_pool_alloc_buffer (GstBufferPool * bpool,
       mem->size = omx_buf->omx_buf->nAllocLen;
       gst_buffer_append_memory (buf, mem);
       g_ptr_array_add (pool->buffers, buf);
+      gst_buffer_add_video_meta_full (buf, GST_VIDEO_FRAME_FLAG_NONE,
+          GST_VIDEO_INFO_FORMAT (&pool->video_info),
+          GST_VIDEO_INFO_WIDTH (&pool->video_info),
+          GST_VIDEO_INFO_HEIGHT (&pool->video_info),
+          GST_VIDEO_INFO_N_PLANES (&pool->video_info), offset, stride);
+
      } else {
        if (pool->add_videometa) {
 	 pool->need_copy = FALSE;
