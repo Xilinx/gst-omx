@@ -290,6 +290,12 @@ typedef struct OMX_VIDEO_SLICESEGMENTSTYPE {
 #define bUSELIBREF true
 #endif
 
+/* Definition of OMX IL version */
+#define OMXIL_MAJOR_VERSION 0x01
+#define OMXIL_MINOR_VERSION 0x01
+#define OMXIL_REVISION 0x02
+#define OMXIL_STEP 0x00
+
 /**
  *
  * Define Index Param Video

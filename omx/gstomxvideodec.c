@@ -213,6 +213,11 @@ gst_omx_video_dec_open (GstVideoDecoder * decoder)
       (OMX_STRING) "OMX.allegro.linux.enableDMA", &DMAtype);
 
   memset (&enable_dmabuf, 0, sizeof (enable_dmabuf));
+  enable_dmabuf.nSize = sizeof(enable_dmabuf);
+  enable_dmabuf.nVersion.s.nVersionMajor = OMXIL_MAJOR_VERSION;
+  enable_dmabuf.nVersion.s.nVersionMinor = OMXIL_MINOR_VERSION;
+  enable_dmabuf.nVersion.s.nRevision = OMXIL_REVISION;
+  enable_dmabuf.nVersion.s.nStep = OMXIL_STEP;
   enable_dmabuf.bEnable = (OMX_BOOL) use_dmabuf;
   enable_dmabuf.nPortIndex = 1;
   OMX_SetParameter (self->dec->handle, DMAtype, &enable_dmabuf);
