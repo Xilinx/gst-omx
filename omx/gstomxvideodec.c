@@ -25,7 +25,7 @@
 #endif
 
 #include <gst/gst.h>
-
+#include<gst/gstevent.h>
 #if defined (USE_OMX_TARGET_RPI) && defined(__GNUC__)
 #ifndef __VCCOREVER__
 #define __VCCOREVER__ 0x04000000
@@ -213,7 +213,7 @@ gst_omx_video_dec_open (GstVideoDecoder * decoder)
       (OMX_STRING) "OMX.allegro.linux.enableDMA", &DMAtype);
 
   memset (&enable_dmabuf, 0, sizeof (enable_dmabuf));
-  enable_dmabuf.nSize = sizeof(enable_dmabuf);
+  enable_dmabuf.nSize = sizeof (enable_dmabuf);
   enable_dmabuf.nVersion.s.nVersionMajor = OMXIL_MAJOR_VERSION;
   enable_dmabuf.nVersion.s.nVersionMinor = OMXIL_MINOR_VERSION;
   enable_dmabuf.nVersion.s.nRevision = OMXIL_REVISION;
@@ -944,8 +944,8 @@ gst_omx_video_dec_deallocate_output_buffers (GstOMXVideoDec * self)
   }
 #if defined (USE_OMX_TARGET_RPI) && defined (HAVE_GST_GL)
   err =
-      gst_omx_port_deallocate_buffers (self->eglimage ? self->
-      egl_out_port : self->dec_out_port);
+      gst_omx_port_deallocate_buffers (self->
+      eglimage ? self->egl_out_port : self->dec_out_port);
 #else
   err = gst_omx_port_deallocate_buffers (self->dec_out_port);
 #endif
@@ -1191,6 +1191,18 @@ enable_port:
   if (err != OMX_ErrorNone)
     goto done;
 
+  GstStructure *dmaList = gst_structure_new ("dmaStruct",
+      "dmaPtrArray", G_TYPE_POINTER, port->buffers, NULL);
+
+  GstEvent *dmaListEvent = gst_event_new_custom (GST_EVENT_CUSTOM_DOWNSTREAM,
+      dmaList);
+  GstPad *newpad = gst_element_get_static_pad (GST_ELEMENT (self), "src");
+  if (newpad == NULL)
+    printf ("src pad did not found\n");
+
+  gst_pad_push_event (newpad, dmaListEvent);
+
+
   err = gst_omx_port_populate (port);
   if (err != OMX_ErrorNone)
     goto done;
@@ -1342,8 +1354,8 @@ gst_omx_video_dec_loop (GstOMXVideoDec * self)
           OMX_VIDEO_CodingUnused);
 
       format =
-          gst_omx_video_get_format_from_omx (port_def.format.video.
-          eColorFormat);
+          gst_omx_video_get_format_from_omx (port_def.format.
+          video.eColorFormat);
 
       if (format == GST_VIDEO_FORMAT_UNKNOWN) {
         GST_ERROR_OBJECT (self, "Unsupported color format: %d",

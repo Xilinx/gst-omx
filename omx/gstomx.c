@@ -1637,6 +1637,8 @@ gst_omx_port_allocate_buffers_unlocked (GstOMXPort * port,
       err =
           OMX_UseBuffer (comp->handle, &buf->omx_buf, port->index, buf,
           port->port_def.nBufferSize, l->data);
+      if (port->index == 0)
+        printf ("Encoder i/p OMX_Usebuffer %d\n", buf->omx_buf->pBuffer);
       buf->eglimage = FALSE;
     } else if (images) {
       err =
@@ -1647,6 +1649,8 @@ gst_omx_port_allocate_buffers_unlocked (GstOMXPort * port,
       err =
           OMX_AllocateBuffer (comp->handle, &buf->omx_buf, port->index, buf,
           port->port_def.nBufferSize);
+      if (port->index == 1)
+        printf ("Decoder o/p OMX_AllocateBuffer %d\n", buf->omx_buf->pBuffer);
       buf->eglimage = FALSE;
     }
 
@@ -1660,7 +1664,6 @@ gst_omx_port_allocate_buffers_unlocked (GstOMXPort * port,
 
     GST_DEBUG_OBJECT (comp->parent, "%s: allocated buffer %p (%p)",
         comp->name, buf, buf->omx_buf->pBuffer);
-
     g_assert (buf->omx_buf->pAppPrivate == buf);
 
     /* In the beginning all buffers are not owned by the component */
