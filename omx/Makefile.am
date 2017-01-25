@@ -94,6 +94,7 @@ libgstomx_la_LIBADD = \
 	-lgstaudio-@GST_API_VERSION@ \
 	-lgstpbutils-@GST_API_VERSION@ \
 	-lgstvideo-@GST_API_VERSION@ \
+	-lgstallocators-@GST_API_VERSION@ \
 	$(GST_BASE_LIBS) \
 	$(GST_LIBS) \
 	$(GMODULE_NO_EXPORT_LIBS)
