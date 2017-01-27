@@ -1396,17 +1396,11 @@ gst_omx_video_enc_fill_buffer (GstOMXVideoEnc * self, GstBuffer * inbuf,
     }
 
     if (self->input_mode == OMX_Enc_InputMode_DMABufImport) {
-      //outbuf->omx_buf->pBuffer =
-      //    gst_dmabuf_memory_get_fd (gst_buffer_peek_memory (inbuf, 0));
-      //printf ("Stride matches & Passed fd to OMX is %d\n",
-      //    outbuf->omx_buf->pBuffer);
-      printf ("Stride matches,Decoder o/p FD is %d, Encoder o/p FD is %d\n",
+      printf ("Stride matches,Decoder o/p FD is %d, Encoder I/P FD is %d\n",
           gst_dmabuf_memory_get_fd (gst_buffer_peek_memory (inbuf, 0)),
           outbuf->omx_buf->pBuffer);
     }
 
-    /* Instead of copying GstOMXBuffer to GstBuffer,
-       Updating data pointer of GstOMXBuffer with GstBuffer data pointer */
     if (self->input_mode == OMX_Enc_InputMode_ZeroCopy) {
 
       GstMapInfo map = GST_MAP_INFO_INIT;
@@ -1423,9 +1417,9 @@ gst_omx_video_enc_fill_buffer (GstOMXVideoEnc * self, GstBuffer * inbuf,
     /* Different strides */
 
     if (self->input_mode == OMX_Enc_InputMode_DMABufImport) {
-      outbuf->omx_buf->pBuffer =
-          gst_dmabuf_memory_get_fd (gst_buffer_peek_memory (inbuf, 0));
-      printf ("Stride does not matched,Passed fd to OMX is %d\n",
+      printf
+          ("Stride does not matches,Decoder o/p FD is %d, Encoder I/P FD is %d\n",
+          gst_dmabuf_memory_get_fd (gst_buffer_peek_memory (inbuf, 0)),
           outbuf->omx_buf->pBuffer);
       ret = TRUE;
       goto done;
@@ -1650,7 +1644,6 @@ gst_omx_video_enc_handle_frame (GstVideoEncoder * encoder,
         printf ("Updated OMX Encoder BuffercountActual is %d\n",
             self->enc_in_port->port_def.nBufferCountActual);
 
-
       } else {
 
         printf ("Bufferpool found by fd tracing, It has %d buffers \n",
@@ -1703,7 +1696,13 @@ gst_omx_video_enc_handle_frame (GstVideoEncoder * encoder,
      * _loop() can't call _finish_frame() and we might block forever
      * because no input buffers are released */
     GST_VIDEO_ENCODER_STREAM_UNLOCK (self);
-    acq_ret = gst_omx_port_acquire_buffer (port, &buf);
+    if (self->input_mode == OMX_Enc_InputMode_DMABufImport) {
+      acq_ret = gst_omx_port_acquire_buffer_dma (port, &buf,
+          gst_dmabuf_memory_get_fd (gst_buffer_peek_memory (frame->input_buffer,
+                  0)));
+    } else {
+      acq_ret = gst_omx_port_acquire_buffer (port, &buf);
+    }
 
     if (acq_ret == GST_OMX_ACQUIRE_BUFFER_ERROR) {
       GST_VIDEO_ENCODER_STREAM_LOCK (self);
@@ -1972,7 +1971,7 @@ gst_omx_video_enc_drain (GstOMXVideoEnc * self, gboolean at_eos)
 }
 
 static void
-test_data (GstOMXBuffer * buf)
+fill_dma_data (GstOMXBuffer * buf)
 {
   buffer_list = g_list_append (buffer_list, buf->omx_buf->pBuffer);
   g_dmalist_count++;
@@ -1993,16 +1992,21 @@ gst_omx_video_enc_sink_event (GstVideoEncoder * encoder, GstEvent * event)
 
   switch (GST_EVENT_TYPE (event)) {
     case GST_EVENT_CUSTOM_DOWNSTREAM:{
-      const GstStructure *structure = gst_event_get_structure (event);
 
-      if (gst_structure_has_name (structure, "dmaStruct")) {
-        p = gst_structure_get_value (structure, "dmaPtrArray");
-        buffers = g_value_get_pointer (p);
-        g_ptr_array_foreach (buffers, test_data, NULL);
-        bufpool_complete = 1;
-        printf ("Custom event for DMA list is sucessful, got %d fd \n",
-            g_dmalist_count);
+      if (self->input_mode == OMX_Enc_InputMode_DMABufImport) {
+
+        const GstStructure *structure = gst_event_get_structure (event);
+
+        if (gst_structure_has_name (structure, "dmaStruct")) {
+          p = gst_structure_get_value (structure, "dmaPtrArray");
+          buffers = g_value_get_pointer (p);
+          g_ptr_array_foreach (buffers, fill_dma_data, NULL);
+          bufpool_complete = 1;
+          printf ("Custom event for DMA list is sucessful, got %d fd \n",
+              g_dmalist_count);
+        }
       }
+
       return sink_event_backup (encoder, event);
       break;
     }

@@ -1218,6 +1218,174 @@ gst_omx_port_update_port_definition (GstOMXPort * port,
   return err;
 }
 
+void
+find_fd (GstOMXBuffer * buf, GstOMXFdFound * fd_helper)
+{
+  if (fd_helper->fd == buf->omx_buf->pBuffer) {
+    fd_helper->index = g_queue_index (fd_helper->pending_buffers, buf);
+    printf ("fd found index is %d\n", fd_helper->index);
+  }
+  return;
+}
+
+/* NOTE: Uses comp->lock and comp->messages_lock */
+GstOMXAcquireBufferReturn
+gst_omx_port_acquire_buffer_dma (GstOMXPort * port, GstOMXBuffer ** buf,
+    gint fd)
+{
+  GstOMXAcquireBufferReturn ret = GST_OMX_ACQUIRE_BUFFER_ERROR;
+  GstOMXComponent *comp;
+  OMX_ERRORTYPE err;
+  GstOMXBuffer *_buf = NULL;
+  GstOMXFdFound fd_helper;
+
+  g_return_val_if_fail (port != NULL, GST_OMX_ACQUIRE_BUFFER_ERROR);
+  g_return_val_if_fail (!port->tunneled, GST_OMX_ACQUIRE_BUFFER_ERROR);
+  g_return_val_if_fail (buf != NULL, GST_OMX_ACQUIRE_BUFFER_ERROR);
+
+  *buf = NULL;
+
+  comp = port->comp;
+
+  g_mutex_lock (&comp->lock);
+  GST_DEBUG_OBJECT (comp->parent, "Acquiring %s buffer from port %u",
+      comp->name, port->index);
+
+retry:
+  gst_omx_component_handle_messages (comp);
+
+  /* Check if the component is in an error state */
+  if ((err = comp->last_error) != OMX_ErrorNone) {
+    GST_ERROR_OBJECT (comp->parent, "Component %s is in error state: %s",
+        comp->name, gst_omx_error_to_string (err));
+    ret = GST_OMX_ACQUIRE_BUFFER_ERROR;
+    goto done;
+  }
+
+  /* Check if the port is flushing */
+  if (port->flushing) {
+    ret = GST_OMX_ACQUIRE_BUFFER_FLUSHING;
+    goto done;
+  }
+
+  /* If this is an input port and at least one of the output ports
+   * needs to be reconfigured, we wait until all output ports are
+   * reconfigured. Afterwards this port is reconfigured if required
+   * or buffers are returned to be filled as usual.
+   */
+  if (port->port_def.eDir == OMX_DirInput) {
+    if (comp->pending_reconfigure_outports) {
+      gst_omx_component_handle_messages (comp);
+      while (comp->pending_reconfigure_outports &&
+          (err = comp->last_error) == OMX_ErrorNone && !port->flushing) {
+        GST_DEBUG_OBJECT (comp->parent,
+            "Waiting for %s output ports to reconfigure", comp->name);
+        gst_omx_component_wait_message (comp, GST_CLOCK_TIME_NONE);
+        gst_omx_component_handle_messages (comp);
+      }
+      goto retry;
+    }
+
+    /* Only if this port needs to be reconfigured too notify
+     * the caller about it */
+    if (port->settings_cookie != port->configured_settings_cookie) {
+      ret = GST_OMX_ACQUIRE_BUFFER_RECONFIGURE;
+      goto done;
+    }
+  }
+
+  /* If we have an output port that needs to be reconfigured
+   * and it still has buffers pending for the old configuration
+   * we first return them.
+   * NOTE: If buffers for this configuration arrive later
+   * we have to drop them... */
+  if (port->port_def.eDir == OMX_DirOutput &&
+      port->settings_cookie != port->configured_settings_cookie) {
+    if (!g_queue_is_empty (&port->pending_buffers)) {
+      GST_DEBUG_OBJECT (comp->parent,
+          "%s output port %u needs reconfiguration but has buffers pending",
+          comp->name, port->index);
+      _buf = g_queue_pop_head (&port->pending_buffers);
+
+      ret = GST_OMX_ACQUIRE_BUFFER_OK;
+      goto done;
+    }
+
+    ret = GST_OMX_ACQUIRE_BUFFER_RECONFIGURE;
+    goto done;
+  }
+
+  if (port->port_def.eDir == OMX_DirOutput && port->eos) {
+    if (!g_queue_is_empty (&port->pending_buffers)) {
+      GST_DEBUG_OBJECT (comp->parent, "%s output port %u is EOS but has "
+          "buffers pending", comp->name, port->index);
+      _buf = g_queue_pop_head (&port->pending_buffers);
+
+      ret = GST_OMX_ACQUIRE_BUFFER_OK;
+      goto done;
+    }
+
+    ret = GST_OMX_ACQUIRE_BUFFER_EOS;
+    goto done;
+  }
+
+  /* 
+   * At this point we have no error or flushing/eos port
+   * and a properly configured port.
+   *
+   */
+
+  /* If the queue is empty we wait until a buffer
+   * arrives, an error happens, the port is flushing
+   * or the port needs to be reconfigured.
+   */
+  gst_omx_component_handle_messages (comp);
+  if (g_queue_is_empty (&port->pending_buffers)) {
+    GST_DEBUG_OBJECT (comp->parent, "Queue of %s port %u is empty",
+        comp->name, port->index);
+    gst_omx_component_wait_message (comp, GST_CLOCK_TIME_NONE);
+    gst_omx_component_handle_messages (comp);
+
+    /* And now check everything again and maybe get a buffer */
+    goto retry;
+  } else {
+    GST_DEBUG_OBJECT (comp->parent, "%s port %u has pending buffers",
+        comp->name, port->index);
+    fd_helper.fd = fd;
+    fd_helper.pending_buffers = &port->pending_buffers;
+    fd_helper.index = -1;
+    g_queue_foreach (&port->pending_buffers, find_fd, &fd_helper);
+    if (fd_helper.index != -1)
+      _buf = g_queue_pop_nth (&port->pending_buffers, fd_helper.index);
+    else {
+      _buf = g_queue_pop_head (&port->pending_buffers);
+      printf ("Fd is %d and its not found in queue, Retry...\n", fd);
+      goto retry;
+    }
+
+    ret = GST_OMX_ACQUIRE_BUFFER_OK;
+    goto done;
+  }
+
+  g_assert_not_reached ();
+  goto retry;
+
+done:
+  g_mutex_unlock (&comp->lock);
+
+  if (_buf) {
+    g_assert (_buf == _buf->omx_buf->pAppPrivate);
+    *buf = _buf;
+  }
+
+  GST_DEBUG_OBJECT (comp->parent, "Acquired buffer %p (%p) from %s port %u: %d",
+      _buf, (_buf ? _buf->omx_buf->pBuffer : NULL), comp->name, port->index,
+      ret);
+
+  return ret;
+}
+
+
 /* NOTE: Uses comp->lock and comp->messages_lock */
 GstOMXAcquireBufferReturn
 gst_omx_port_acquire_buffer (GstOMXPort * port, GstOMXBuffer ** buf)
@@ -1637,8 +1805,6 @@ gst_omx_port_allocate_buffers_unlocked (GstOMXPort * port,
       err =
           OMX_UseBuffer (comp->handle, &buf->omx_buf, port->index, buf,
           port->port_def.nBufferSize, l->data);
-      if (port->index == 0)
-        printf ("Encoder i/p OMX_Usebuffer %d\n", buf->omx_buf->pBuffer);
       buf->eglimage = FALSE;
     } else if (images) {
       err =
@@ -1649,8 +1815,6 @@ gst_omx_port_allocate_buffers_unlocked (GstOMXPort * port,
       err =
           OMX_AllocateBuffer (comp->handle, &buf->omx_buf, port->index, buf,
           port->port_def.nBufferSize);
-      if (port->index == 1)
-        printf ("Decoder o/p OMX_AllocateBuffer %d\n", buf->omx_buf->pBuffer);
       buf->eglimage = FALSE;
     }
 

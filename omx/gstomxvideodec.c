@@ -1198,9 +1198,9 @@ enable_port:
       dmaList);
   GstPad *newpad = gst_element_get_static_pad (GST_ELEMENT (self), "src");
   if (newpad == NULL)
-    printf ("src pad did not found\n");
-
-  gst_pad_push_event (newpad, dmaListEvent);
+    printf ("Decoder: src pad did not found\n");
+  else
+    gst_pad_push_event (newpad, dmaListEvent);
 
 
   err = gst_omx_port_populate (port);

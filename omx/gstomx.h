@@ -123,6 +123,7 @@ typedef struct _GstOMXComponent GstOMXComponent;
 typedef struct _GstOMXBuffer GstOMXBuffer;
 typedef struct _GstOMXClassData GstOMXClassData;
 typedef struct _GstOMXMessage GstOMXMessage;
+typedef struct _GstOMXFdFound GstOMXFdFound;
 
 typedef enum {
   /* Everything good and the buffer is valid */
@@ -290,6 +291,13 @@ struct _GstOMXClassData {
 
   GstOmxComponentType type;
 };
+
+struct _GstOMXFdFound {
+  gint fd;
+  GQueue *pending_buffers;
+  gint index;
+};
+
 
 GKeyFile *        gst_omx_get_configuration (void);
 
