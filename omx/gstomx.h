@@ -264,6 +264,7 @@ struct _GstOMXComponent {
 struct _GstOMXBuffer {
   GstOMXPort *port;
   OMX_BUFFERHEADERTYPE *omx_buf;
+  GstBuffer *input_buffer;
 
   /* TRUE if the buffer is used by the port, i.e.
    * between {Empty,Fill}ThisBuffer and the callback

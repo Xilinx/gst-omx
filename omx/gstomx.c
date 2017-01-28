@@ -589,6 +589,7 @@ EmptyBufferDone (OMX_HANDLETYPE hComponent, OMX_PTR pAppData,
   GstOMXBuffer *buf;
   GstOMXComponent *comp;
   GstOMXMessage *msg;
+  GstOMXVideoEnc *self_enc;
 
   buf = pBuffer->pAppPrivate;
   if (!buf) {
@@ -614,6 +615,17 @@ EmptyBufferDone (OMX_HANDLETYPE hComponent, OMX_PTR pAppData,
 
   GST_LOG_OBJECT (comp->parent, "%s port %u emptied buffer %p (%p)",
       comp->name, buf->port->index, buf, buf->omx_buf->pBuffer);
+
+  if (!strcmp (comp->name, "encoder")) {
+    self_enc = comp->parent;
+    if (self_enc != NULL) {
+      if (self_enc->input_mode == OMX_Enc_InputMode_DMABufImport) {
+        if (buf->port->index == 0) {
+          gst_buffer_unref (buf->input_buffer);
+        }
+      }
+    }
+  }
 
   gst_omx_component_send_message (comp, msg);
 
@@ -1223,7 +1235,6 @@ find_fd (GstOMXBuffer * buf, GstOMXFdFound * fd_helper)
 {
   if (fd_helper->fd == buf->omx_buf->pBuffer) {
     fd_helper->index = g_queue_index (fd_helper->pending_buffers, buf);
-    printf ("fd found index is %d\n", fd_helper->index);
   }
   return;
 }
@@ -1359,7 +1370,8 @@ retry:
       _buf = g_queue_pop_nth (&port->pending_buffers, fd_helper.index);
     else {
       _buf = g_queue_pop_head (&port->pending_buffers);
-      printf ("Fd is %d and its not found in queue, Retry...\n", fd);
+      GST_FIXME_OBJECT (comp->parent,
+          "Fd is %d and its not found in queue, Retry...\n", fd);
       goto retry;
     }
 
