@@ -623,10 +623,17 @@ EmptyBufferDone (OMX_HANDLETYPE hComponent, OMX_PTR pAppData,
         if (buf->port->index == 0) {
           gst_buffer_unref (buf->input_buffer);
         }
+      } else if (self_enc->input_mode == OMX_Enc_InputMode_ZeroCopy) {
+        if (buf->port->index == 0) {
+          gst_buffer_unref (buf->input_buffer);
+        }
       }
     }
+  } else if (!strcmp (comp->name, "decoder")) {
+    if (buf->port->index == 0) {
+      gst_buffer_unref (buf->input_buffer);
+    }
   }
-
   gst_omx_component_send_message (comp, msg);
 
   return OMX_ErrorNone;

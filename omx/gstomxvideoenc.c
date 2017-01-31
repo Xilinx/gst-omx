@@ -1412,6 +1412,8 @@ gst_omx_video_enc_fill_buffer (GstOMXVideoEnc * self, GstBuffer * inbuf,
       }
       outbuf->omx_buf->pBuffer = map.data;
       gst_buffer_unmap (inbuf, &map);
+      gst_buffer_ref (inbuf);
+      outbuf->input_buffer = inbuf;
     }
 
     ret = TRUE;

@@ -949,8 +949,8 @@ gst_omx_video_dec_deallocate_output_buffers (GstOMXVideoDec * self)
   }
 #if defined (USE_OMX_TARGET_RPI) && defined (HAVE_GST_GL)
   err =
-      gst_omx_port_deallocate_buffers (self->
-      eglimage ? self->egl_out_port : self->dec_out_port);
+      gst_omx_port_deallocate_buffers (self->eglimage ? self->
+      egl_out_port : self->dec_out_port);
 #else
   err = gst_omx_port_deallocate_buffers (self->dec_out_port);
 #endif
@@ -1303,9 +1303,9 @@ gst_omx_video_dec_loop (GstOMXVideoDec * self)
   OMX_ERRORTYPE err;
 #ifdef VIDEODEC_PERF
   static gint frame_count = 0;
-  struct timeval tvalAfter = {0};
+  struct timeval tvalAfter = { 0 };
   long unsigned int microsecRender;
-  static struct timeval oldtvalAfter = {0};
+  static struct timeval oldtvalAfter = { 0 };
 #endif
 
 #if defined (USE_OMX_TARGET_RPI) && defined (HAVE_GST_GL)
@@ -1365,8 +1365,8 @@ gst_omx_video_dec_loop (GstOMXVideoDec * self)
           OMX_VIDEO_CodingUnused);
 
       format =
-          gst_omx_video_get_format_from_omx (port_def.format.
-          video.eColorFormat);
+          gst_omx_video_get_format_from_omx (port_def.format.video.
+          eColorFormat);
 
       if (format == GST_VIDEO_FORMAT_UNKNOWN) {
         GST_ERROR_OBJECT (self, "Unsupported color format: %d",
@@ -1533,12 +1533,13 @@ gst_omx_video_dec_loop (GstOMXVideoDec * self)
 
 #ifdef VIDEODEC_PERF
       gettimeofday (&tvalAfter, NULL);
-      GST_WARNING_OBJECT(self, "Rendering frame : %d\n", ++frame_count);
-      microsecRender =  ((tvalAfter.tv_sec - oldtvalAfter.tv_sec)*1000000L
-			      +tvalAfter.tv_usec) - oldtvalAfter.tv_usec;
-      GST_FIXME_OBJECT(self, "Time taken to send new frame : %ld microseconds\n", microsecRender);
+      GST_WARNING_OBJECT (self, "Rendering frame : %d\n", ++frame_count);
+      microsecRender = ((tvalAfter.tv_sec - oldtvalAfter.tv_sec) * 1000000L
+          + tvalAfter.tv_usec) - oldtvalAfter.tv_usec;
+      GST_FIXME_OBJECT (self,
+          "Time taken to send new frame : %ld microseconds\n", microsecRender);
       oldtvalAfter = tvalAfter;
-      GST_FIXME_OBJECT(self, "Current FPS : %lf \n", 1E6/microsecRender);
+      GST_FIXME_OBJECT (self, "Current FPS : %lf \n", 1E6 / microsecRender);
 #endif
 
       frame = NULL;
@@ -2438,6 +2439,8 @@ gst_omx_video_dec_handle_frame (GstVideoDecoder * decoder,
     }
     buf->omx_buf->pBuffer = map.data;
     gst_buffer_unmap (frame->input_buffer, &map);
+    gst_buffer_ref (frame->input_buffer);
+    buf->input_buffer = frame->input_buffer;
 
 
     if (timestamp != GST_CLOCK_TIME_NONE) {
