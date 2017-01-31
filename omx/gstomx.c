@@ -620,18 +620,21 @@ EmptyBufferDone (OMX_HANDLETYPE hComponent, OMX_PTR pAppData,
     self_enc = comp->parent;
     if (self_enc != NULL) {
       if (self_enc->input_mode == OMX_Enc_InputMode_DMABufImport) {
-        if (buf->port->index == 0) {
+        if ((buf->port->index == 0) && (buf->input_buffer != NULL)) {
           gst_buffer_unref (buf->input_buffer);
+          buf->input_buffer = NULL;
         }
       } else if (self_enc->input_mode == OMX_Enc_InputMode_ZeroCopy) {
-        if (buf->port->index == 0) {
+        if ((buf->port->index == 0) && (buf->input_buffer != NULL)) {
           gst_buffer_unref (buf->input_buffer);
+          buf->input_buffer = NULL;
         }
       }
     }
   } else if (!strcmp (comp->name, "decoder")) {
-    if (buf->port->index == 0) {
+    if ((buf->port->index == 0) && (buf->input_buffer != NULL)) {
       gst_buffer_unref (buf->input_buffer);
+      buf->input_buffer = NULL;
     }
   }
   gst_omx_component_send_message (comp, msg);
