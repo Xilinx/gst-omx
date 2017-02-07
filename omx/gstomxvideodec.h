@@ -32,7 +32,6 @@
 #include "gstomx.h"
 
 G_BEGIN_DECLS
-
 #define GST_TYPE_OMX_VIDEO_DEC \
   (gst_omx_video_dec_get_type())
 #define GST_OMX_VIDEO_DEC(obj) \
@@ -45,59 +44,85 @@ G_BEGIN_DECLS
   (G_TYPE_CHECK_INSTANCE_TYPE((obj),GST_TYPE_OMX_VIDEO_DEC))
 #define GST_IS_OMX_VIDEO_DEC_CLASS(obj) \
   (G_TYPE_CHECK_CLASS_TYPE((klass),GST_TYPE_OMX_VIDEO_DEC))
-
 typedef struct _GstOMXVideoDec GstOMXVideoDec;
 typedef struct _GstOMXVideoDecClass GstOMXVideoDecClass;
 
-struct _GstOMXVideoDec
-{
-  GstVideoDecoder parent;
+#ifdef USE_OMX_TARGET_ZYNQ_USCALE_PLUS
+#define GST_TYPE_OMX_DEC_IP_MODE (gst_omx_dec_ip_mode_get_type ())
+#define GST_TYPE_OMX_DEC_OP_MODE (gst_omx_dec_op_mode_get_type ())
 
-  /* < protected > */
-  GstOMXComponent *dec;
-  GstOMXPort *dec_in_port, *dec_out_port;
-  
-  GstBufferPool *in_port_pool, *out_port_pool;
+GType gst_omx_dec_ip_mode_get_type (void);
+GType gst_omx_dec_op_mode_get_type (void);
 
-  /* < private > */
-  GstVideoCodecState *input_state;
-  GstBuffer *codec_data;
-  /* TRUE if the component is configured and saw
-   * the first buffer */
-  gboolean started;
+     typedef enum
+     {
+       GST_OMX_DEC_IP_DEFAULT = 0,
+       GST_OMX_DEC_IP_ZERO_COPY = 1,
+     } GstOMXDecIpMode;
 
-  GstClockTime last_upstream_ts;
-
-  /* Draining state */
-  GMutex drain_lock;
-  GCond drain_cond;
-  /* TRUE if EOS buffers shouldn't be forwarded */
-  gboolean draining;
-
-  /* TRUE if upstream is EOS */
-  gboolean eos;
-
-  GstFlowReturn downstream_flow_ret;
-#ifdef USE_OMX_TARGET_RPI
-  GstOMXComponent *egl_render;
-  GstOMXPort *egl_in_port, *egl_out_port;
-  gboolean eglimage;
+     typedef enum
+     {
+       GST_OMX_DEC_OP_DEFAULT = 0,
+       GST_OMX_DEC_OP_DMA_EXPORT = 1,
+     } GstOMXDecOpMode;
 #endif
-};
 
-struct _GstOMXVideoDecClass
-{
-  GstVideoDecoderClass parent_class;
+     struct _GstOMXVideoDec
+     {
+       GstVideoDecoder parent;
 
-  GstOMXClassData cdata;
+       /* < protected > */
+       GstOMXComponent *dec;
+       GstOMXPort *dec_in_port, *dec_out_port;
 
-  gboolean (*is_format_change) (GstOMXVideoDec * self, GstOMXPort * port, GstVideoCodecState * state);
-  gboolean (*set_format)       (GstOMXVideoDec * self, GstOMXPort * port, GstVideoCodecState * state);
-  GstFlowReturn (*prepare_frame)   (GstOMXVideoDec * self, GstVideoCodecFrame *frame);
-};
+       GstBufferPool *in_port_pool, *out_port_pool;
 
-GType gst_omx_video_dec_get_type (void);
+       /* < private > */
+       GstVideoCodecState *input_state;
+       GstBuffer *codec_data;
+       /* TRUE if the component is configured and saw
+        * the first buffer */
+       gboolean started;
+
+       GstClockTime last_upstream_ts;
+
+       /* Draining state */
+       GMutex drain_lock;
+       GCond drain_cond;
+       /* TRUE if EOS buffers shouldn't be forwarded */
+       gboolean draining;
+
+       /* TRUE if upstream is EOS */
+       gboolean eos;
+
+       GstFlowReturn downstream_flow_ret;
+#ifdef USE_OMX_TARGET_RPI
+       GstOMXComponent *egl_render;
+       GstOMXPort *egl_in_port, *egl_out_port;
+       gboolean eglimage;
+#endif
+
+#ifdef USE_OMX_TARGET_ZYNQ_USCALE_PLUS
+       GstOMXDecIpMode ip_mode;
+       GstOMXDecOpMode op_mode;
+#endif
+     };
+
+     struct _GstOMXVideoDecClass
+     {
+       GstVideoDecoderClass parent_class;
+
+       GstOMXClassData cdata;
+
+         gboolean (*is_format_change) (GstOMXVideoDec * self, GstOMXPort * port,
+           GstVideoCodecState * state);
+         gboolean (*set_format) (GstOMXVideoDec * self, GstOMXPort * port,
+           GstVideoCodecState * state);
+         GstFlowReturn (*prepare_frame) (GstOMXVideoDec * self,
+           GstVideoCodecFrame * frame);
+     };
+
+     GType gst_omx_video_dec_get_type (void);
 
 G_END_DECLS
-
 #endif /* __GST_OMX_VIDEO_DEC_H__ */

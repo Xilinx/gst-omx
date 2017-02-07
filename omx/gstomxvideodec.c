@@ -88,9 +88,23 @@ static OMX_ERRORTYPE gst_omx_video_dec_allocate_output_buffers (GstOMXVideoDec *
 static OMX_ERRORTYPE gst_omx_video_dec_deallocate_output_buffers (GstOMXVideoDec
     * self);
 
+#ifdef USE_OMX_TARGET_ZYNQ_USCALE_PLUS
+static void
+gst_omx_video_dec_set_property (GObject * object, guint prop_id,
+    const GValue * value, GParamSpec * pspec);
+
+static void
+gst_omx_video_dec_get_property (GObject * object, guint prop_id,
+    GValue * value, GParamSpec * pspec);
+#endif
+
 enum
 {
-  PROP_0
+  PROP_0,
+#ifdef USE_OMX_TARGET_ZYNQ_USCALE_PLUS
+  PROP_IP_MODE,
+  PROP_OP_MODE,
+#endif
 };
 
 /* class initialization */
@@ -103,6 +117,46 @@ enum
 G_DEFINE_ABSTRACT_TYPE_WITH_CODE (GstOMXVideoDec, gst_omx_video_dec,
     GST_TYPE_VIDEO_DECODER, DEBUG_INIT);
 
+#ifdef USE_OMX_TARGET_ZYNQ_USCALE_PLUS
+
+#define DEFAULT_PROP_IP_MODE GST_OMX_DEC_IP_DEFAULT
+#define DEFAULT_PROP_OP_MODE GST_OMX_DEC_OP_DEFAULT
+
+GType
+gst_omx_dec_ip_mode_get_type (void)
+{
+  static GType omx_dec_ip_mode = 0;
+
+  if (!omx_dec_ip_mode) {
+    static const GEnumValue ip_modes[] = {
+      {GST_OMX_DEC_IP_DEFAULT, "Default Mode", "default"},
+      {GST_OMX_DEC_IP_ZERO_COPY, "No copy from GstBuffer to GstOMXBuffer",
+          "zerocopy"},
+      {0, NULL, NULL}
+    };
+    omx_dec_ip_mode = g_enum_register_static ("GstOMXDecIpMode", ip_modes);
+  }
+  return omx_dec_ip_mode;
+}
+
+GType
+gst_omx_dec_op_mode_get_type (void)
+{
+  static GType omx_dec_op_mode = 0;
+
+  if (!omx_dec_op_mode) {
+    static const GEnumValue op_modes[] = {
+      {GST_OMX_DEC_OP_DEFAULT, "Default Mode", "default"},
+      {GST_OMX_DEC_OP_DMA_EXPORT, "Export output as DMA buffer", "dma-export"},
+      {0, NULL, NULL}
+    };
+    omx_dec_op_mode = g_enum_register_static ("GstOMXDecOpMode", op_modes);
+  }
+  return omx_dec_op_mode;
+}
+#endif
+
+
 static void
 gst_omx_video_dec_class_init (GstOMXVideoDecClass * klass)
 {
@@ -111,6 +165,24 @@ gst_omx_video_dec_class_init (GstOMXVideoDecClass * klass)
   GstVideoDecoderClass *video_decoder_class = GST_VIDEO_DECODER_CLASS (klass);
 
   gobject_class->finalize = gst_omx_video_dec_finalize;
+
+#ifdef USE_OMX_TARGET_ZYNQ_USCALE_PLUS
+  gobject_class->set_property = gst_omx_video_dec_set_property;
+  gobject_class->get_property = gst_omx_video_dec_get_property;
+
+  g_object_class_install_property (gobject_class, PROP_IP_MODE,
+      g_param_spec_enum ("ip-mode", "Input mode",
+          "Decoder input mode",
+          GST_TYPE_OMX_DEC_IP_MODE,
+          DEFAULT_PROP_IP_MODE, G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
+
+  g_object_class_install_property (gobject_class, PROP_OP_MODE,
+      g_param_spec_enum ("op-mode", "Output mode",
+          "Decoder output mode",
+          GST_TYPE_OMX_DEC_OP_MODE,
+          DEFAULT_PROP_OP_MODE, G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
+
+#endif
 
   element_class->change_state =
       GST_DEBUG_FUNCPTR (gst_omx_video_dec_change_state);
@@ -139,6 +211,7 @@ gst_omx_video_dec_class_init (GstOMXVideoDecClass * klass)
       "height = " GST_VIDEO_SIZE_RANGE ", " "framerate = " GST_VIDEO_FPS_RANGE;
 }
 
+
 static void
 gst_omx_video_dec_init (GstOMXVideoDec * self)
 {
@@ -160,7 +233,7 @@ gst_omx_video_dec_open (GstVideoDecoder * decoder)
   OMX_VIDEO_PARAM_ENABLEBOARD enable_board;
   OMX_VIDEO_PARAM_ENABLEDMABUFFER enable_dmabuf;
   OMX_VIDEO_PARAM_ENABLEMCU enable_mcu;
-  static int use_dmabuf = 1, use_mcu = 1, use_board = 0;
+  static int use_dmabuf = 0, use_mcu = 1, use_board = 0;
 #endif
 
   GST_DEBUG_OBJECT (self, "Opening decoder");
@@ -214,18 +287,20 @@ gst_omx_video_dec_open (GstVideoDecoder * decoder)
   enable_board.bEnable = use_board;
   OMX_SetParameter (self->dec->handle, type, &enable_board);
 
-  OMX_GetExtensionIndex (self->dec->handle,
-      (OMX_STRING) "OMX.allegro.linux.enableDMA", &DMAtype);
-
-  memset (&enable_dmabuf, 0, sizeof (enable_dmabuf));
-  enable_dmabuf.nSize = sizeof (enable_dmabuf);
-  enable_dmabuf.nVersion.s.nVersionMajor = OMXIL_MAJOR_VERSION;
-  enable_dmabuf.nVersion.s.nVersionMinor = OMXIL_MINOR_VERSION;
-  enable_dmabuf.nVersion.s.nRevision = OMXIL_REVISION;
-  enable_dmabuf.nVersion.s.nStep = OMXIL_STEP;
-  enable_dmabuf.bEnable = (OMX_BOOL) use_dmabuf;
-  enable_dmabuf.nPortIndex = 1;
-  OMX_SetParameter (self->dec->handle, DMAtype, &enable_dmabuf);
+  if (self->op_mode == GST_OMX_DEC_OP_DMA_EXPORT) {
+    OMX_GetExtensionIndex (self->dec->handle,
+        (OMX_STRING) "OMX.allegro.linux.enableDMA", &DMAtype);
+    use_dmabuf = 1;
+    memset (&enable_dmabuf, 0, sizeof (enable_dmabuf));
+    enable_dmabuf.nSize = sizeof (enable_dmabuf);
+    enable_dmabuf.nVersion.s.nVersionMajor = OMXIL_MAJOR_VERSION;
+    enable_dmabuf.nVersion.s.nVersionMinor = OMXIL_MINOR_VERSION;
+    enable_dmabuf.nVersion.s.nRevision = OMXIL_REVISION;
+    enable_dmabuf.nVersion.s.nStep = OMXIL_STEP;
+    enable_dmabuf.bEnable = (OMX_BOOL) use_dmabuf;
+    enable_dmabuf.nPortIndex = 1;
+    OMX_SetParameter (self->dec->handle, DMAtype, &enable_dmabuf);
+  }
 
   OMX_GetExtensionIndex (self->dec->handle,
       (OMX_STRING) "OMX.allegro.enableMCU", &MCUtype);
@@ -1887,10 +1962,12 @@ gst_omx_video_dec_set_format (GstVideoDecoder * decoder,
   gboolean is_format_change = FALSE;
   gboolean needs_disable = FALSE;
   OMX_PARAM_PORTDEFINITIONTYPE port_def;
+#ifdef USE_OMX_TARGET_ZYNQ_USCALE_PLUS
   GList *buffer_list = NULL;
   GstMapInfo map_info;
   GstBuffer *mem = NULL;
   gint i;
+#endif
 
   self = GST_OMX_VIDEO_DEC (decoder);
   klass = GST_OMX_VIDEO_DEC_GET_CLASS (decoder);
@@ -2098,32 +2175,41 @@ gst_omx_video_dec_set_format (GstVideoDecoder * decoder,
               OMX_StateIdle) != OMX_ErrorNone)
         return FALSE;
 
+#if !defined (USE_OMX_TARGET_ZYNQ_USCALE_PLUS)
+
+      if (gst_omx_port_allocate_buffers (self->dec_in_port) != OMX_ErrorNone)
+        return FALSE;
+
+#else
       /* Need to allocate buffers to reach Idle state */
+      if (self->ip_mode == GST_OMX_DEC_IP_DEFAULT) {
+        if (gst_omx_port_allocate_buffers (self->dec_in_port) != OMX_ErrorNone)
+          return FALSE;
+      }
 
       /* Moving from OMX_AllocateBuffers to  OMX_UseBuffers,
          Idea is to give address of GstBuffer's data received from previos element in pipeline
          to GstOMXBuffer's data pointer. But at _set_format stage we do not have those GstBuffer
          So below is hack of dummpy memory for OMX component initializing */
+      if (self->ip_mode == GST_OMX_DEC_IP_ZERO_COPY) {
+        mem = gst_buffer_new_allocate (NULL, 1024, NULL);
+        gst_buffer_map (mem, &map_info, GST_MAP_READ);
 
-      /* if (gst_omx_port_allocate_buffers (self->dec_in_port) != OMX_ErrorNone)
-         return FALSE; */
+        gst_omx_port_update_port_definition (self->dec_in_port, NULL);
 
-      mem = gst_buffer_new_allocate (NULL, 1024, NULL);
-      gst_buffer_map (mem, &map_info, GST_MAP_READ);
+        for (i = 0; i < self->dec_in_port->port_def.nBufferCountActual; i++)
+          buffer_list = g_list_append (buffer_list, map_info.data);
 
-      gst_omx_port_update_port_definition (self->dec_in_port, NULL);
+        if (gst_omx_port_use_buffers (self->dec_in_port,
+                buffer_list) != OMX_ErrorNone)
+          return FALSE;
 
-      for (i = 0; i < self->dec_in_port->port_def.nBufferCountActual; i++)
-        buffer_list = g_list_append (buffer_list, map_info.data);
+        gst_buffer_unmap (mem, &map_info);
+        gst_buffer_unref (mem);
+        g_list_free (buffer_list);
 
-      if (gst_omx_port_use_buffers (self->dec_in_port,
-              buffer_list) != OMX_ErrorNone)
-        return FALSE;
-
-      gst_buffer_unmap (mem, &map_info);
-      gst_buffer_unref (mem);
-      g_list_free (buffer_list);
-
+      }
+#endif
       if (gst_omx_port_allocate_buffers (self->dec_out_port) != OMX_ErrorNone)
         return FALSE;
 
@@ -2425,24 +2511,31 @@ gst_omx_video_dec_handle_frame (GstVideoDecoder * decoder,
     buf->omx_buf->nFilledLen =
         MIN (size - offset, buf->omx_buf->nAllocLen - buf->omx_buf->nOffset);
 
+#if !defined(USE_OMX_TARGET_ZYNQ_USCALE_PLUS)
+    gst_buffer_extract (frame->input_buffer, offset,
+        buf->omx_buf->pBuffer + buf->omx_buf->nOffset,
+        buf->omx_buf->nFilledLen);
+#else
+    if (self->ip_mode == GST_OMX_DEC_IP_DEFAULT) {
+      gst_buffer_extract (frame->input_buffer, offset,
+          buf->omx_buf->pBuffer + buf->omx_buf->nOffset,
+          buf->omx_buf->nFilledLen);
+    }
     /*  Instead of copying GstOMXBuffer to GstBuffer,
        Updating data pointer of GstOMXBuffer with GstBuffer data pointer */
 
-    /* gst_buffer_extract (frame->input_buffer, offset,
-       buf->omx_buf->pBuffer + buf->omx_buf->nOffset,
-       buf->omx_buf->nFilledLen); */
+    if (self->ip_mode == GST_OMX_DEC_IP_ZERO_COPY) {
+      GstMapInfo map = GST_MAP_INFO_INIT;
 
-    GstMapInfo map = GST_MAP_INFO_INIT;
-
-    if (!gst_buffer_map (frame->input_buffer, &map, GST_MAP_READ)) {
-      GST_ERROR_OBJECT (self, "Failed to map input buffer");
+      if (!gst_buffer_map (frame->input_buffer, &map, GST_MAP_READ)) {
+        GST_ERROR_OBJECT (self, "Failed to map input buffer");
+      }
+      buf->omx_buf->pBuffer = map.data;
+      gst_buffer_unmap (frame->input_buffer, &map);
+      gst_buffer_ref (frame->input_buffer);
+      buf->input_buffer = frame->input_buffer;
     }
-    buf->omx_buf->pBuffer = map.data;
-    gst_buffer_unmap (frame->input_buffer, &map);
-    gst_buffer_ref (frame->input_buffer);
-    buf->input_buffer = frame->input_buffer;
-
-
+#endif
     if (timestamp != GST_CLOCK_TIME_NONE) {
       buf->omx_buf->nTimeStamp =
           gst_util_uint64_scale (timestamp, OMX_TICKS_PER_SECOND, GST_SECOND);
@@ -2704,3 +2797,44 @@ gst_omx_video_dec_decide_allocation (GstVideoDecoder * bdec, GstQuery * query)
 
   return TRUE;
 }
+
+#ifdef USE_OMX_TARGET_ZYNQ_USCALE_PLUS
+static void
+gst_omx_video_dec_set_property (GObject * object, guint prop_id,
+    const GValue * value, GParamSpec * pspec)
+{
+  GstOMXVideoDec *self = GST_OMX_VIDEO_DEC (object);
+
+  switch (prop_id) {
+    case PROP_IP_MODE:
+    {
+      self->ip_mode = g_value_get_enum (value);
+      break;
+    }
+    case PROP_OP_MODE:
+      self->op_mode = g_value_get_enum (value);
+      break;
+    default:
+      G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
+      break;
+  }
+}
+
+static void
+gst_omx_video_dec_get_property (GObject * object, guint prop_id,
+    GValue * value, GParamSpec * pspec)
+{
+  GstOMXVideoDec *self = GST_OMX_VIDEO_DEC (object);
+  switch (prop_id) {
+    case PROP_IP_MODE:
+      g_value_set_enum (value, self->ip_mode);
+      break;
+    case PROP_OP_MODE:
+      g_value_set_enum (value, self->op_mode);
+      break;
+    default:
+      G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
+      break;
+  }
+}
+#endif
