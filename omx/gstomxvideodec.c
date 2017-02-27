@@ -1041,6 +1041,10 @@ gst_omx_video_dec_reconfigure_output_port (GstOMXVideoDec * self)
   GstVideoCodecState *state;
   OMX_PARAM_PORTDEFINITIONTYPE port_def;
   GstVideoFormat format;
+  GArray *fds = NULL;
+  GstOMXBuffer *tmp = NULL;
+  gint i;
+
 
   /* At this point the decoder output port is disabled */
 
@@ -1271,8 +1275,14 @@ enable_port:
   if (err != OMX_ErrorNone)
     goto done;
 
+  fds = g_array_new (FALSE, FALSE, sizeof (gint));
+  for (i = 0; i < self->dec_out_port->port_def.nBufferCountActual; i++) {
+    tmp = g_ptr_array_index (port->buffers, i);
+    fds = g_array_append_val (fds, tmp->omx_buf->pBuffer);
+  }
+
   GstStructure *dmaList = gst_structure_new ("dmaStruct",
-      "dmaPtrArray", G_TYPE_POINTER, port->buffers, NULL);
+      "dmaPtrArray", G_TYPE_ARRAY, fds, NULL);
 
   GstEvent *dmaListEvent = gst_event_new_custom (GST_EVENT_CUSTOM_DOWNSTREAM,
       dmaList);
@@ -1282,6 +1292,7 @@ enable_port:
   else
     gst_pad_push_event (newpad, dmaListEvent);
 
+  g_array_unref (fds);
 
   err = gst_omx_port_populate (port);
   if (err != OMX_ErrorNone)

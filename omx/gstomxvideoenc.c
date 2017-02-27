@@ -1978,14 +1978,6 @@ gst_omx_video_enc_drain (GstOMXVideoEnc * self, gboolean at_eos)
   return GST_FLOW_OK;
 }
 
-static void
-fill_dma_data (GstOMXBuffer * buf)
-{
-  buffer_list = g_list_append (buffer_list, buf->omx_buf->pBuffer);
-  g_dmalist_count++;
-  return;
-}
-
 static gboolean *
 gst_omx_video_enc_sink_event (GstVideoEncoder * encoder, GstEvent * event)
 {
@@ -1994,9 +1986,8 @@ gst_omx_video_enc_sink_event (GstVideoEncoder * encoder, GstEvent * event)
   self = GST_OMX_VIDEO_ENC (encoder);
   GstOMXVideoEncClass *klass = GST_OMX_VIDEO_ENC_GET_CLASS (self);
   GstElementClass *element_class = GST_ELEMENT_CLASS (klass);
-  const GValue *p;
-  struct GPtrArray *buffers;
   gint value;
+  gint i = 0;
 
   switch (GST_EVENT_TYPE (event)) {
     case GST_EVENT_CUSTOM_DOWNSTREAM:{
@@ -2004,18 +1995,24 @@ gst_omx_video_enc_sink_event (GstVideoEncoder * encoder, GstEvent * event)
       if (self->input_mode == OMX_Enc_InputMode_DMABufImport) {
 
         const GstStructure *structure = gst_event_get_structure (event);
+        GArray *buffers;
 
         if (gst_structure_has_name (structure, "dmaStruct")) {
-          p = gst_structure_get_value (structure, "dmaPtrArray");
-          buffers = g_value_get_pointer (p);
-          g_ptr_array_foreach (buffers, fill_dma_data, NULL);
+          gst_structure_get (structure, "dmaPtrArray", G_TYPE_ARRAY, &buffers,
+              NULL);
+
+          for (i = 0; i < buffers->len; i++) {
+            buffer_list =
+                g_list_append (buffer_list, g_array_index (buffers, gint, i));
+            g_dmalist_count++;
+          }
           bufpool_complete = 1;
+	  g_array_unref(buffers);
           GST_FIXME_OBJECT (self,
               "Custom event for DMA list is sucessful, got %d fd \n",
               g_dmalist_count);
         }
       }
-
       return sink_event_backup (encoder, event);
       break;
     }
