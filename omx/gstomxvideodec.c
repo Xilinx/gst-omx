@@ -1963,6 +1963,43 @@ gst_omx_video_dec_negotiate (GstOMXVideoDec * self)
   return (err == OMX_ErrorNone);
 }
 
+static guint
+get_latency_in_frames (GstOMXVideoDec * self)
+{
+  /* Processing time takes roughly one frame in common scenarios */
+  return self->dec_in_port->port_def.nBufferCountMin + 1;
+}
+
+static void
+gst_omx_video_dec_set_latency (GstOMXVideoDec * self)
+{
+  GstVideoCodecState *state = gst_video_codec_state_ref (self->input_state);
+  GstVideoInfo *info = &state->info;
+  GstClockTime latency;
+  gint max_delayed_frames;
+
+  max_delayed_frames = get_latency_in_frames (self);
+
+  if (info->fps_n) {
+    latency = gst_util_uint64_scale_ceil (GST_SECOND * info->fps_d,
+        max_delayed_frames, info->fps_n);
+  } else {
+    /* FIXME: Assume 25fps. This is better than reporting no latency at
+     * all and then later failing in live pipelines
+     */
+    latency = gst_util_uint64_scale_ceil (GST_SECOND * 1,
+        max_delayed_frames, 25);
+  }
+
+  GST_INFO_OBJECT (self,
+      "Updating latency to %" GST_TIME_FORMAT " (%d frames)",
+      GST_TIME_ARGS (latency), max_delayed_frames);
+
+  gst_video_decoder_set_latency (GST_VIDEO_DECODER (self), latency, latency);
+
+  gst_video_codec_state_unref (state);
+}
+
 static gboolean
 gst_omx_video_dec_set_format (GstVideoDecoder * decoder,
     GstVideoCodecState * state)
@@ -2249,6 +2286,8 @@ gst_omx_video_dec_set_format (GstVideoDecoder * decoder,
         gst_omx_component_get_last_error (self->dec));
     return FALSE;
   }
+
+  gst_omx_video_dec_set_latency (self);
 
   self->downstream_flow_ret = GST_FLOW_OK;
   return TRUE;
