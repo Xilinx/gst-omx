@@ -238,7 +238,7 @@ case "${ac_cv_omx_target}" in
     AC_DEFINE(USE_OMX_TARGET_BELLAGIO, 1, [Use Bellagio OpenMAX IL target])
     ;;
   zynqultrascaleplus)
-    AC_DEFINE(USE_OMX_TARGET_ZYNQ_USCALE_PLUS, 1, [Use Bellagio OpenMAX IL target])
+    AC_DEFINE(USE_OMX_TARGET_ZYNQ_USCALE_PLUS, 1, [Use ZynqUscale plus OpenMAX IL target])
     ;;
   none|*)
     AC_ERROR([invalid OpenMAX IL target, you must specify one of --with-omx-target={generic,rpi,bellagio,zynqultrascaleplus}])

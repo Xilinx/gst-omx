@@ -52,7 +52,7 @@
 #include <OMX_Broadcom.h>
 #endif
 
-#ifdef HAVE_VIDEO_EXT
+#if defined(HAVE_VIDEO_EXT) || defined(USE_OMX_TARGET_ZYNQ_USCALE_PLUS)
 #include <OMX_VideoExt.h>
 #endif
 

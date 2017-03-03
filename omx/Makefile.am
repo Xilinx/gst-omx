@@ -10,6 +10,11 @@ THEORA_C_FILES=gstomxtheoradec.c
 THEORA_H_FILES=gstomxtheoradec.h
 endif
 
+if USE_OMX_TARGET_ZYNQ_USCALE_PLUS
+	$(H265_C_FILES)=gstomxh265enc.c
+	$(H265_H_FILES)=gstomxh265enc.h
+endif
+
 libgstomx_la_SOURCES = \
 	gstomx.c \
 	gstomxbufferpool.c \
@@ -27,6 +32,8 @@ libgstomx_la_SOURCES = \
 	$(VP8_C_FILES) \
 	$(THEORA_C_FILES) \
 	gstomxmpeg4videoenc.c \
+	$(H265_C_FILES) \
+	$(H265_H_FILES) \
 	gstomxh264enc.c \
 	gstomxh263enc.c \
 	gstomxaacdec.c \
@@ -63,6 +70,10 @@ noinst_HEADERS = \
 	gstomxhdmiaudiosink.h 	
 
 if !HAVE_EXTERNAL_OMX
+OMX_INCLUDEPATH = -I$(abs_srcdir)/openmax
+endif
+
+if USE_OMX_TARGET_ZYNQ_USCALE_PLUS
 OMX_INCLUDEPATH = -I$(abs_srcdir)/openmax
 endif
 

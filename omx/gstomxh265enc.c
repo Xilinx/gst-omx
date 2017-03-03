@@ -97,7 +97,7 @@ gst_omx_h265_enc_set_format (GstOMXVideoEnc * enc, GstOMXPort * port,
 
   gst_omx_port_get_port_definition (GST_OMX_VIDEO_ENC (self)->enc_out_port,
       &port_def);
-  port_def.format.video.eCompressionFormat = NVX_VIDEO_CodingHEVC;
+  port_def.format.video.eCompressionFormat = OMX_VIDEO_CodingVendorStartUnused;
   err =
       gst_omx_port_update_port_definition (GST_OMX_VIDEO_ENC
       (self)->enc_out_port, &port_def);
@@ -219,7 +219,7 @@ gst_omx_h265_enc_set_format (GstOMXVideoEnc * enc, GstOMXPort * port,
     gst_caps_unref (peercaps);
   }
 
-
+#if 0
   if (self->insert_sps_pps) {
     err = gst_omx_h265_enc_set_insert_sps_pps (enc);
     if (err != OMX_ErrorNone) {
@@ -229,7 +229,7 @@ gst_omx_h265_enc_set_format (GstOMXVideoEnc * enc, GstOMXPort * port,
       return FALSE;
     }
   }
-
+#endif
 
   return TRUE;
 
@@ -421,6 +421,7 @@ gst_omx_h265_enc_handle_output_frame (GstOMXVideoEnc * self, GstOMXPort * port,
       frame);
 }
 
+#if 0
 static OMX_ERRORTYPE
 gst_omx_h265_enc_set_insert_sps_pps (GstOMXVideoEnc * enc)
 {
@@ -451,3 +452,4 @@ gst_omx_h265_enc_set_insert_sps_pps (GstOMXVideoEnc * enc)
   }
   return eError;
 }
+#endif
