@@ -68,8 +68,7 @@ gst_omx_h265_dec_class_init (GstOMXH265DecClass * klass)
   gst_element_class_set_static_metadata (element_class,
       "OpenMAX H.265 Video Decoder",
       "Codec/Decoder/Video",
-      "Decode H.265 video streams",
-      "Sanket Kothari <skothari@nvidia.com>");
+      "Decode H.265 video streams", "Sanket Kothari <skothari@nvidia.com>");
 
   gst_omx_set_default_role (&videodec_class->cdata, "video_decoder.hevc");
 }
@@ -96,7 +95,7 @@ gst_omx_h265_dec_set_format (GstOMXVideoDec * dec, GstOMXPort * port,
   OMX_PARAM_PORTDEFINITIONTYPE port_def;
 
   gst_omx_port_get_port_definition (port, &port_def);
-  port_def.format.video.eCompressionFormat = NVX_VIDEO_CodingHEVC;
+  port_def.format.video.eCompressionFormat = OMX_VIDEO_CodingVendorStartUnused;
 
   ret = gst_omx_port_update_port_definition (port, &port_def) == OMX_ErrorNone;
 

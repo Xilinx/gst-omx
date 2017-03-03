@@ -12,7 +12,9 @@ endif
 
 if USE_OMX_TARGET_ZYNQ_USCALE_PLUS
 	$(H265_C_FILES)=gstomxh265enc.c
-	$(H265_H_FILES)=gstomxh265enc.h
+	$(H265_C_FILES)=gstomxh265enc.c
+	$(H265DEC_H_FILES)=gstomxh265dec.h
+	$(H265DEC_H_FILES)=gstomxh265dec.h
 endif
 
 libgstomx_la_SOURCES = \
@@ -33,6 +35,7 @@ libgstomx_la_SOURCES = \
 	$(THEORA_C_FILES) \
 	gstomxmpeg4videoenc.c \
 	gstomxh265enc.c \
+	gstomxh265dec.c \
 	gstomxh264enc.c \
 	gstomxh263enc.c \
 	gstomxaacdec.c \
