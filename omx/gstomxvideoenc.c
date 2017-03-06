@@ -2067,7 +2067,18 @@ static gboolean
 gst_omx_video_enc_propose_allocation (GstVideoEncoder * encoder,
     GstQuery * query)
 {
+  GstOMXVideoEnc *self = GST_OMX_VIDEO_ENC (encoder);
+  GstVideoCodecState *state = gst_video_codec_state_ref (self->input_state);
+  GstVideoInfo *info = &state->info;
+  guint num_buffers;
+
   gst_query_add_allocation_meta (query, GST_VIDEO_META_API_TYPE, NULL);
+
+  num_buffers = get_latency_in_frames (self) + 1;
+  GST_DEBUG_OBJECT (self, "request at least %d buffers", num_buffers);
+  gst_query_add_allocation_pool (query, NULL, info->size, num_buffers, 0);
+
+  gst_video_codec_state_unref (state);
 
   return
       GST_VIDEO_ENCODER_CLASS
