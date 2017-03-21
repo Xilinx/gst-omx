@@ -26,6 +26,7 @@
 #include <gst/video/gstvideometa.h>
 #include <string.h>
 #include <gst/allocators/gstdmabuf.h>
+#include <stdlib.h>
 
 #include "gstomxvideo.h"
 #include "gstomxvideoenc.h"
@@ -1034,6 +1035,12 @@ gst_omx_video_enc_stop (GstVideoEncoder * encoder)
 static guint
 get_latency_in_frames (GstOMXVideoEnc * self)
 {
+  if (g_getenv ("HACK_ENC_LATENCY")) {
+    guint frames = atoi (g_getenv ("HACK_ENC_LATENCY"));
+    GST_DEBUG_OBJECT (self, "HACK set %d buffers as latency", frames);
+    return frames;
+  }
+
   /* Processing time takes roughly one frame in common scenarios */
   return self->enc_in_port->port_def.nBufferCountMin + 1;
 }

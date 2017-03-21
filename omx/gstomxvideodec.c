@@ -51,6 +51,7 @@
 #include "gstomxbufferpool.h"
 #include "gstomxvideo.h"
 #include "gstomxvideodec.h"
+#include <stdlib.h>
 
 
 GST_DEBUG_CATEGORY_STATIC (gst_omx_video_dec_debug_category);
@@ -1945,6 +1946,12 @@ gst_omx_video_dec_negotiate (GstOMXVideoDec * self)
 static guint
 get_latency_in_frames (GstOMXVideoDec * self)
 {
+  if (g_getenv ("HACK_DEC_LATENCY")) {
+    guint frames = atoi (g_getenv ("HACK_DEC_LATENCY"));
+    GST_DEBUG_OBJECT (self, "HACK set %d buffers as latency", frames);
+    return frames;
+  }
+
   /* Processing time takes roughly one frame in common scenarios */
   return self->dec_in_port->port_def.nBufferCountMin + 1;
 }
