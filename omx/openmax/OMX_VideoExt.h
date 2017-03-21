@@ -336,6 +336,22 @@ typedef struct OMX_VIDEO_PARAM_ENABLEBOARD
   OMX_BOOL bEnable;
 }OMX_VIDEO_PARAM_ENABLEBOARD;
 
+#define OMX_AL_CUSTOMPARAM_DECODER_LATENCY "OMX.allegro.decoderLatency"
+
+typedef enum e_LatencyMode
+{
+  AL_LATENCY_NORMAL,
+  AL_LATENCY_LOW
+
+}AL_LatencyMode;
+
+typedef struct OMX_VIDEO_PARAM_DECODERLATENCY
+{
+  OMX_U32 nSize;
+  OMX_VERSIONTYPE nVersion;
+  AL_LatencyMode eMode;
+}OMX_VIDEO_PARAM_DECODERLATENCY;
+
 #endif
 
 #ifdef __cplusplus
