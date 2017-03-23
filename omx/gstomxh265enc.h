@@ -44,6 +44,8 @@ struct _GstOMXH265Enc
 {
   GstOMXVideoEnc parent;
   gboolean insert_sps_pps;
+  guint32 p_frames;
+  guint32 b_frames;
 };
 
 struct _GstOMXH265EncClass
