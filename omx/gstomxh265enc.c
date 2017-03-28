@@ -25,6 +25,7 @@
 #include <gst/gst.h>
 
 #include "gstomxh265enc.h"
+#include "gstomxh265utils.h"
 
 GST_DEBUG_CATEGORY_STATIC (gst_omx_h265_enc_debug_category);
 #define GST_CAT_DEFAULT gst_omx_h265_enc_debug_category
@@ -209,68 +210,6 @@ gst_omx_h265_enc_init (GstOMXH265Enc * self)
   self->insert_sps_pps = TRUE;
 }
 
-static OMX_VIDEO_HEVCLEVELTYPE
-get_level_type (const gchar * tier_string, const gchar * level_string)
-{
-  if (g_str_equal (tier_string, "main")) {
-    if (g_str_equal (level_string, "1"))
-      return OMX_VIDEO_HEVCMainTierLevel1;
-    else if (g_str_equal (level_string, "2"))
-      return OMX_VIDEO_HEVCMainTierLevel2;
-    else if (g_str_equal (level_string, "2.1"))
-      return OMX_VIDEO_HEVCMainTierLevel21;
-    else if (g_str_equal (level_string, "3"))
-      return OMX_VIDEO_HEVCMainTierLevel3;
-    else if (g_str_equal (level_string, "3.1"))
-      return OMX_VIDEO_HEVCMainTierLevel31;
-    else if (g_str_equal (level_string, "4"))
-      return OMX_VIDEO_HEVCMainTierLevel4;
-    else if (g_str_equal (level_string, "4.1"))
-      return OMX_VIDEO_HEVCMainTierLevel41;
-    else if (g_str_equal (level_string, "5"))
-      return OMX_VIDEO_HEVCMainTierLevel5;
-    else if (g_str_equal (level_string, "5.1"))
-      return OMX_VIDEO_HEVCMainTierLevel51;
-    else if (g_str_equal (level_string, "5.2"))
-      return OMX_VIDEO_HEVCMainTierLevel52;
-    else if (g_str_equal (level_string, "6"))
-      return OMX_VIDEO_HEVCMainTierLevel6;
-    else if (g_str_equal (level_string, "6.1"))
-      return OMX_VIDEO_HEVCMainTierLevel61;
-    else if (g_str_equal (level_string, "6.2"))
-      return OMX_VIDEO_HEVCMainTierLevel62;
-  } else if (g_str_equal (tier_string, "high")) {
-    if (g_str_equal (level_string, "1"))
-      return OMX_VIDEO_HEVCHighTierLevel1;
-    else if (g_str_equal (level_string, "2"))
-      return OMX_VIDEO_HEVCHighTierLevel2;
-    else if (g_str_equal (level_string, "2.1"))
-      return OMX_VIDEO_HEVCHighTierLevel21;
-    else if (g_str_equal (level_string, "3"))
-      return OMX_VIDEO_HEVCHighTierLevel3;
-    else if (g_str_equal (level_string, "3.1"))
-      return OMX_VIDEO_HEVCHighTierLevel31;
-    else if (g_str_equal (level_string, "4"))
-      return OMX_VIDEO_HEVCHighTierLevel4;
-    else if (g_str_equal (level_string, "4.1"))
-      return OMX_VIDEO_HEVCHighTierLevel41;
-    else if (g_str_equal (level_string, "5"))
-      return OMX_VIDEO_HEVCHighTierLevel5;
-    else if (g_str_equal (level_string, "5.1"))
-      return OMX_VIDEO_HEVCHighTierLevel51;
-    else if (g_str_equal (level_string, "5.2"))
-      return OMX_VIDEO_HEVCHighTierLevel52;
-    else if (g_str_equal (level_string, "6"))
-      return OMX_VIDEO_HEVCHighTierLevel6;
-    else if (g_str_equal (level_string, "6.1"))
-      return OMX_VIDEO_HEVCHighTierLevel61;
-    else if (g_str_equal (level_string, "6.2"))
-      return OMX_VIDEO_HEVCHighTierLevel62;
-  }
-
-  return OMX_VIDEO_HEVCLevelMax;
-}
-
 static gboolean
 gst_omx_h265_enc_set_format (GstOMXVideoEnc * enc, GstOMXPort * port,
     GstVideoCodecState * state)
@@ -318,21 +257,16 @@ gst_omx_h265_enc_set_format (GstOMXVideoEnc * enc, GstOMXPort * port,
     if (err == OMX_ErrorNone) {
       profile_string = gst_structure_get_string (s, "profile");
       if (profile_string) {
-        if (g_str_equal (profile_string, "main")) {
-          param.eProfile = OMX_VIDEO_HEVCProfileMain;
-        } else if (g_str_equal (profile_string, "main-10")) {
-          param.eProfile = OMX_VIDEO_HEVCProfileMain10;
-        } else if (g_str_equal (profile_string, "main-still-picture")) {
-          param.eProfile = OMX_VIDEO_HEVCProfileMainStillPicture;
-        } else {
+        param.eProfile =
+            gst_omx_h265_utils_get_profile_from_str (profile_string);
+        if (param.eProfile == OMX_VIDEO_HEVCProfileMax)
           goto unsupported_profile;
-        }
       }
 
       tier_string = gst_structure_get_string (s, "tier");
       level_string = gst_structure_get_string (s, "level");
       if (tier_string && level_string) {
-        param.eLevel = get_level_type (tier_string, level_string);
+        param.eLevel = gst_omx_h265_utils_get_level_from_str (tier_string, level_string);
         if (param.eLevel == OMX_VIDEO_HEVCLevelMax)
           goto unsupported_level;
       }
