@@ -209,6 +209,68 @@ gst_omx_h265_enc_init (GstOMXH265Enc * self)
   self->insert_sps_pps = TRUE;
 }
 
+static OMX_VIDEO_HEVCLEVELTYPE
+get_level_type (const gchar * tier_string, const gchar * level_string)
+{
+  if (g_str_equal (tier_string, "main")) {
+    if (g_str_equal (level_string, "1"))
+      return OMX_VIDEO_HEVCMainTierLevel1;
+    else if (g_str_equal (level_string, "2"))
+      return OMX_VIDEO_HEVCMainTierLevel2;
+    else if (g_str_equal (level_string, "2.1"))
+      return OMX_VIDEO_HEVCMainTierLevel21;
+    else if (g_str_equal (level_string, "3"))
+      return OMX_VIDEO_HEVCMainTierLevel3;
+    else if (g_str_equal (level_string, "3.1"))
+      return OMX_VIDEO_HEVCMainTierLevel31;
+    else if (g_str_equal (level_string, "4"))
+      return OMX_VIDEO_HEVCMainTierLevel4;
+    else if (g_str_equal (level_string, "4.1"))
+      return OMX_VIDEO_HEVCMainTierLevel41;
+    else if (g_str_equal (level_string, "5"))
+      return OMX_VIDEO_HEVCMainTierLevel5;
+    else if (g_str_equal (level_string, "5.1"))
+      return OMX_VIDEO_HEVCMainTierLevel51;
+    else if (g_str_equal (level_string, "5.2"))
+      return OMX_VIDEO_HEVCMainTierLevel52;
+    else if (g_str_equal (level_string, "6"))
+      return OMX_VIDEO_HEVCMainTierLevel6;
+    else if (g_str_equal (level_string, "6.1"))
+      return OMX_VIDEO_HEVCMainTierLevel61;
+    else if (g_str_equal (level_string, "6.2"))
+      return OMX_VIDEO_HEVCMainTierLevel62;
+  } else if (g_str_equal (tier_string, "high")) {
+    if (g_str_equal (level_string, "1"))
+      return OMX_VIDEO_HEVCHighTierLevel1;
+    else if (g_str_equal (level_string, "2"))
+      return OMX_VIDEO_HEVCHighTierLevel2;
+    else if (g_str_equal (level_string, "2.1"))
+      return OMX_VIDEO_HEVCHighTierLevel21;
+    else if (g_str_equal (level_string, "3"))
+      return OMX_VIDEO_HEVCHighTierLevel3;
+    else if (g_str_equal (level_string, "3.1"))
+      return OMX_VIDEO_HEVCHighTierLevel31;
+    else if (g_str_equal (level_string, "4"))
+      return OMX_VIDEO_HEVCHighTierLevel4;
+    else if (g_str_equal (level_string, "4.1"))
+      return OMX_VIDEO_HEVCHighTierLevel41;
+    else if (g_str_equal (level_string, "5"))
+      return OMX_VIDEO_HEVCHighTierLevel5;
+    else if (g_str_equal (level_string, "5.1"))
+      return OMX_VIDEO_HEVCHighTierLevel51;
+    else if (g_str_equal (level_string, "5.2"))
+      return OMX_VIDEO_HEVCHighTierLevel52;
+    else if (g_str_equal (level_string, "6"))
+      return OMX_VIDEO_HEVCHighTierLevel6;
+    else if (g_str_equal (level_string, "6.1"))
+      return OMX_VIDEO_HEVCHighTierLevel61;
+    else if (g_str_equal (level_string, "6.2"))
+      return OMX_VIDEO_HEVCHighTierLevel62;
+  }
+
+  return OMX_VIDEO_HEVCLevelMax;
+}
+
 static gboolean
 gst_omx_h265_enc_set_format (GstOMXVideoEnc * enc, GstOMXPort * port,
     GstVideoCodecState * state)
@@ -218,7 +280,7 @@ gst_omx_h265_enc_set_format (GstOMXVideoEnc * enc, GstOMXPort * port,
   OMX_PARAM_PORTDEFINITIONTYPE port_def;
   OMX_VIDEO_PARAM_PROFILELEVELTYPE param;
   OMX_ERRORTYPE err;
-  const gchar *profile_string = NULL, *level_string = NULL;
+  const gchar *profile_string = NULL, *level_string = NULL, *tier_string;
 
   gst_omx_port_get_port_definition (GST_OMX_VIDEO_ENC (self)->enc_out_port,
       &port_def);
@@ -260,70 +322,19 @@ gst_omx_h265_enc_set_format (GstOMXVideoEnc * enc, GstOMXPort * port,
           param.eProfile = OMX_VIDEO_HEVCProfileMain;
         } else if (g_str_equal (profile_string, "main-10")) {
           param.eProfile = OMX_VIDEO_HEVCProfileMain10;
-        } else if (g_str_equal (profile_string, "mainstillpicture")) {
+        } else if (g_str_equal (profile_string, "main-still-picture")) {
           param.eProfile = OMX_VIDEO_HEVCProfileMainStillPicture;
         } else {
           goto unsupported_profile;
         }
       }
 
+      tier_string = gst_structure_get_string (s, "tier");
       level_string = gst_structure_get_string (s, "level");
-      if (level_string) {
-        if (g_str_equal (level_string, "main1")) {
-          param.eLevel = OMX_VIDEO_HEVCMainTierLevel1;
-        } else if (g_str_equal (level_string, "main2")) {
-          param.eLevel = OMX_VIDEO_HEVCMainTierLevel2;
-        } else if (g_str_equal (level_string, "main2.1")) {
-          param.eLevel = OMX_VIDEO_HEVCMainTierLevel21;
-        } else if (g_str_equal (level_string, "main3")) {
-          param.eLevel = OMX_VIDEO_HEVCMainTierLevel3;
-        } else if (g_str_equal (level_string, "main3.1")) {
-          param.eLevel = OMX_VIDEO_HEVCMainTierLevel31;
-        } else if (g_str_equal (level_string, "main4")) {
-          param.eLevel = OMX_VIDEO_HEVCMainTierLevel4;
-        } else if (g_str_equal (level_string, "main4.1")) {
-          param.eLevel = OMX_VIDEO_HEVCMainTierLevel41;
-        } else if (g_str_equal (level_string, "main5")) {
-          param.eLevel = OMX_VIDEO_HEVCMainTierLevel5;
-        } else if (g_str_equal (level_string, "main5.1")) {
-          param.eLevel = OMX_VIDEO_HEVCMainTierLevel51;
-        } else if (g_str_equal (level_string, "main5.2")) {
-          param.eLevel = OMX_VIDEO_HEVCMainTierLevel52;
-        } else if (g_str_equal (level_string, "main6")) {
-          param.eLevel = OMX_VIDEO_HEVCMainTierLevel6;
-        } else if (g_str_equal (level_string, "main6.1")) {
-          param.eLevel = OMX_VIDEO_HEVCMainTierLevel61;
-        } else if (g_str_equal (level_string, "main6.2")) {
-          param.eLevel = OMX_VIDEO_HEVCMainTierLevel62;
-        } else if (g_str_equal (level_string, "high1")) {
-          param.eLevel = OMX_VIDEO_HEVCHighTierLevel1;
-        } else if (g_str_equal (level_string, "high2")) {
-          param.eLevel = OMX_VIDEO_HEVCHighTierLevel2;
-        } else if (g_str_equal (level_string, "high2.1")) {
-          param.eLevel = OMX_VIDEO_HEVCHighTierLevel21;
-        } else if (g_str_equal (level_string, "high3")) {
-          param.eLevel = OMX_VIDEO_HEVCHighTierLevel3;
-        } else if (g_str_equal (level_string, "high3.1")) {
-          param.eLevel = OMX_VIDEO_HEVCHighTierLevel31;
-        } else if (g_str_equal (level_string, "high4")) {
-          param.eLevel = OMX_VIDEO_HEVCHighTierLevel4;
-        } else if (g_str_equal (level_string, "high4.1")) {
-          param.eLevel = OMX_VIDEO_HEVCHighTierLevel41;
-        } else if (g_str_equal (level_string, "high5")) {
-          param.eLevel = OMX_VIDEO_HEVCHighTierLevel5;
-        } else if (g_str_equal (level_string, "high5.1")) {
-          param.eLevel = OMX_VIDEO_HEVCHighTierLevel51;
-        } else if (g_str_equal (level_string, "high5.2")) {
-          param.eLevel = OMX_VIDEO_HEVCHighTierLevel52;
-        } else if (g_str_equal (level_string, "high6")) {
-          param.eLevel = OMX_VIDEO_HEVCHighTierLevel6;
-        } else if (g_str_equal (level_string, "high6.1")) {
-          param.eLevel = OMX_VIDEO_HEVCHighTierLevel61;
-        } else if (g_str_equal (level_string, "high6.2")) {
-          param.eLevel = OMX_VIDEO_HEVCHighTierLevel62;
-        } else {
+      if (tier_string && level_string) {
+        param.eLevel = get_level_type (tier_string, level_string);
+        if (param.eLevel == OMX_VIDEO_HEVCLevelMax)
           goto unsupported_level;
-        }
       }
 
       err =
@@ -377,7 +388,7 @@ gst_omx_h265_enc_get_caps (GstOMXVideoEnc * enc, GstOMXPort * port,
   GstCaps *caps;
   OMX_ERRORTYPE err;
   OMX_VIDEO_PARAM_PROFILELEVELTYPE param;
-  const gchar *profile, *level;
+  const gchar *profile, *tier, *level;
 
   caps = gst_caps_new_simple ("video/x-h265",
       "alignment", G_TYPE_STRING, "au", NULL);
@@ -401,7 +412,7 @@ gst_omx_h265_enc_get_caps (GstOMXVideoEnc * enc, GstOMXPort * port,
         profile = "main-10";
         break;
       case OMX_VIDEO_HEVCProfileMainStillPicture:
-        profile = "mainstillpicture";
+        profile = "main-still-picture";
         break;
 
       default:
@@ -411,82 +422,108 @@ gst_omx_h265_enc_get_caps (GstOMXVideoEnc * enc, GstOMXPort * port,
 
     switch (param.eLevel) {
       case OMX_VIDEO_HEVCMainTierLevel1:
-        level = "main1";
+        tier = "main";
+        level = "1";
         break;
       case OMX_VIDEO_HEVCMainTierLevel2:
-        level = "main2";
+        tier = "main";
+        level = "2";
         break;
       case OMX_VIDEO_HEVCMainTierLevel21:
-        level = "main2.1";
+        tier = "main";
+        level = "2.1";
         break;
       case OMX_VIDEO_HEVCMainTierLevel3:
-        level = "main3";
+        tier = "main";
+        level = "3";
         break;
       case OMX_VIDEO_HEVCMainTierLevel31:
-        level = "main3.1";
+        tier = "main";
+        level = "3.1";
         break;
       case OMX_VIDEO_HEVCMainTierLevel4:
-        level = "main4";
+        tier = "main";
+        level = "4";
         break;
       case OMX_VIDEO_HEVCMainTierLevel41:
-        level = "main4.1";
+        tier = "main";
+        level = "4.1";
         break;
       case OMX_VIDEO_HEVCMainTierLevel5:
-        level = "main5";
+        tier = "main";
+        level = "5";
         break;
       case OMX_VIDEO_HEVCMainTierLevel51:
-        level = "main5.1";
+        tier = "main";
+        level = "5.1";
         break;
       case OMX_VIDEO_HEVCMainTierLevel52:
-        level = "main5.2";
+        tier = "main";
+        level = "5.2";
         break;
       case OMX_VIDEO_HEVCMainTierLevel6:
-        level = "main6";
+        tier = "main";
+        level = "6";
         break;
       case OMX_VIDEO_HEVCMainTierLevel61:
-        level = "main6.1";
+        tier = "main";
+        level = "6.1";
         break;
       case OMX_VIDEO_HEVCMainTierLevel62:
-        level = "main6.2";
+        tier = "main";
+        level = "6.2";
         break;
       case OMX_VIDEO_HEVCHighTierLevel1:
-        level = "high1";
+        tier = "high";
+        level = "1";
         break;
       case OMX_VIDEO_HEVCHighTierLevel2:
-        level = "high2";
+        tier = "high";
+        level = "2";
         break;
       case OMX_VIDEO_HEVCHighTierLevel21:
-        level = "high2.1";
+        tier = "high";
+        level = "2.1";
         break;
       case OMX_VIDEO_HEVCHighTierLevel3:
-        level = "high3";
+        tier = "high";
+        level = "3";
         break;
       case OMX_VIDEO_HEVCHighTierLevel31:
-        level = "high3.1";
+        tier = "high";
+        level = "3.1";
         break;
       case OMX_VIDEO_HEVCHighTierLevel4:
-        level = "high4";
+        tier = "high";
+        level = "4";
         break;
       case OMX_VIDEO_HEVCHighTierLevel41:
-        level = "high4.1";
+        tier = "high";
+        level = "4.1";
         break;
       case OMX_VIDEO_HEVCHighTierLevel5:
-        level = "high5";
+        tier = "high";
+        level = "5";
         break;
       case OMX_VIDEO_HEVCHighTierLevel51:
-        level = "high5.1";
+        tier = "high";
+        level = "5.1";
         break;
       case OMX_VIDEO_HEVCHighTierLevel52:
-        level = "high5.2";
+        tier = "high";
+        level = "5.2";
         break;
       case OMX_VIDEO_HEVCHighTierLevel6:
-        level = "high6";
+        tier = "high";
+        level = "6";
         break;
       case OMX_VIDEO_HEVCHighTierLevel61:
-        level = "high6.1";
+        tier = "high";
+        level = "6.1";
         break;
       case OMX_VIDEO_HEVCHighTierLevel62:
-        level = "high6.2";
+        tier = "high";
+        level = "6.2";
         break;
 
       default:
@@ -495,7 +532,8 @@ gst_omx_h265_enc_get_caps (GstOMXVideoEnc * enc, GstOMXPort * port,
     }
 
     gst_caps_set_simple (caps,
-        "profile", G_TYPE_STRING, profile, "level", G_TYPE_STRING, level, NULL);
+        "profile", G_TYPE_STRING, profile, "tier", G_TYPE_STRING, tier, "level",
+        G_TYPE_STRING, level, NULL);
   }
 
   return caps;
