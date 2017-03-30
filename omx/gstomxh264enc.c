@@ -581,6 +581,11 @@ gst_omx_h264_enc_get_caps (GstOMXVideoEnc * enc, GstOMXPort * port,
         "profile", G_TYPE_STRING, profile, "level", G_TYPE_STRING, level, NULL);
   }
 
+  /* FIXME: Should we enable this using a hack flag ? */
+#ifdef USE_OMX_TARGET_ZYNQ_USCALE_PLUS
+  gst_caps_set_simple (caps, "parsed", G_TYPE_BOOLEAN, TRUE, NULL);
+#endif
+
   return caps;
 }
 
