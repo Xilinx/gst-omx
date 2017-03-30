@@ -190,7 +190,7 @@ gst_omx_h265_enc_class_init (GstOMXH265EncClass * klass)
   videoenc_class->cdata.default_src_template_caps = "video/x-h265, "
       "width=(int) [ 1, MAX ], " "height=(int) [ 1, MAX ], "
       "framerate = (fraction) [0, MAX], "
-      "stream-format=(string) { byte-stream, hvc1, hev1 }, "
+      "stream-format=(string) byte-stream, "
       "alignment=(string) au ";
 
   gst_element_class_set_static_metadata (element_class,
@@ -325,7 +325,8 @@ gst_omx_h265_enc_get_caps (GstOMXVideoEnc * enc, GstOMXPort * port,
   const gchar *profile, *tier, *level;
 
   caps = gst_caps_new_simple ("video/x-h265",
-      "alignment", G_TYPE_STRING, "au", NULL);
+      "alignment", G_TYPE_STRING, "au", "stream-format", G_TYPE_STRING,
+      "byte-stream", NULL);
 
   GST_OMX_INIT_STRUCT (&param);
   param.nPortIndex = GST_OMX_VIDEO_ENC (self)->enc_out_port->index;
