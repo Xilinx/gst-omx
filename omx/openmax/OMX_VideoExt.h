@@ -306,6 +306,7 @@ typedef enum AL_INDEX_PARAM_VIDEO_TYPE
   OMX_IndexParamVideoHevc = OMX_IndexVendorStartUnused,
   OMX_IndexParamVideoEnableBoard,
   OMX_IndexParamVideoEnableMCU,
+  OMX_IndexParamVideoL2Cache,
   OMX_IndexParamVideoEnableDMA,
 }AL_INDEX_PARAM_VIDEO_TYPE;
 
@@ -351,6 +352,15 @@ typedef struct OMX_VIDEO_PARAM_DECODERLATENCY
   OMX_VERSIONTYPE nVersion;
   AL_LatencyMode eMode;
 }OMX_VIDEO_PARAM_DECODERLATENCY;
+
+#define OMX_AL_CUSTOMPARAM_L2CACHE "OMX.allegro.l2cache"
+typedef struct OMX_VIDEO_PARAM_L2CACHE
+{
+  OMX_U32 nSize;
+  OMX_VERSIONTYPE nVersion;
+  OMX_U32 nL2CacheSize;
+}OMX_VIDEO_PARAM_L2CACHE;
+
 
 #endif
 
