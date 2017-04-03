@@ -137,7 +137,7 @@ enum
 #define GST_OMX_VIDEO_ENC_QUANT_P_FRAMES_DEFAULT (0xffffffff)
 #define GST_OMX_VIDEO_ENC_QUANT_B_FRAMES_DEFAULT (0xffffffff)
 #define GST_OMX_VIDEO_ENC_INPUT_MODE_DEFAULT (0xffffffff)
-#define GST_OMX_VIDEO_ENC_L2CACHE_DEFAULT (0x0)
+#define GST_OMX_VIDEO_ENC_L2CACHE_DEFAULT (0)
 #define GST_OMX_VIDEO_ENC_STRIDE_DEFAULT (1)
 #define GST_OMX_VIDEO_ENC_SLICEHEIGHT_DEFAULT (1)
 
@@ -220,8 +220,8 @@ gst_omx_video_enc_class_init (GstOMXVideoEncClass * klass)
           GST_PARAM_MUTABLE_READY));
 
   g_object_class_install_property (gobject_class, PROP_L2CACHE,
-      g_param_spec_uint ("l2cache", "Value of L2Cache",
-          "Value of L2Cache in KB (0x0=component default)",
+      g_param_spec_uint ("enc-buffer-size", "Value of L2Cache buffer size",
+          "Value of encoder L2Cache buffer size in KB (0x0=component default)",
           0, G_MAXUINT, GST_OMX_VIDEO_ENC_L2CACHE_DEFAULT,
           G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS |
           GST_PARAM_MUTABLE_READY));
@@ -289,6 +289,7 @@ gst_omx_video_enc_open (GstVideoEncoder * encoder)
   OMX_VIDEO_PARAM_ENABLEDMABUFFER enable_dmabuf;
   OMX_VIDEO_PARAM_ENABLEMCU enable_mcu;
   OMX_VIDEO_PARAM_L2CACHE l2cache_value;
+  OMX_ERRORTYPE err;
 
   static int use_dmabuf = 0, use_mcu = 1, use_board = 0;
 
@@ -365,11 +366,21 @@ gst_omx_video_enc_open (GstVideoEncoder * encoder)
   if(self->l2cache) {
 	OMX_GetExtensionIndex (self->enc->handle,
 	(OMX_STRING) "OMX.allegro.l2cache", &L2CACHEtype);
-	memset (&l2cache_value, 0, sizeof (l2cache_value));
+        GST_OMX_INIT_STRUCT (&l2cache_value);
 	l2cache_value.nL2CacheSize = (OMX_U32) self->l2cache;
-	OMX_SetParameter (self->enc->handle, L2CACHEtype, &l2cache_value);
-        GST_DEBUG_OBJECT (self, "L2cache buffer size is updated to %d",
-          l2cache_value.nL2CacheSize);
+        err =
+            gst_omx_component_set_parameter (self->enc,
+            L2CACHEtype, &l2cache_value);
+        if (err != OMX_ErrorNone) {
+          GST_ERROR_OBJECT (self,
+              "Failed to set enc_buffer_size parameters: %s (0x%08x)",
+              gst_omx_error_to_string (err), err);
+          return FALSE;
+        } else {
+          GST_DEBUG_OBJECT (self, "L2cache buffer size is updated to %d",
+            l2cache_value.nL2CacheSize);
+
+        }
   }
 #endif
 
