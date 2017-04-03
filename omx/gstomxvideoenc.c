@@ -126,7 +126,8 @@ enum
   PROP_QUANT_B_FRAMES,
   PROP_STRIDE,
   PROP_INPUT_MODE,
-  PROP_L2CACHE
+  PROP_L2CACHE,
+  PROP_SLICEHEIGHT
 };
 
 /* FIXME: Better defaults */
@@ -137,6 +138,8 @@ enum
 #define GST_OMX_VIDEO_ENC_QUANT_B_FRAMES_DEFAULT (0xffffffff)
 #define GST_OMX_VIDEO_ENC_INPUT_MODE_DEFAULT (0xffffffff)
 #define GST_OMX_VIDEO_ENC_L2CACHE_DEFAULT (0x0)
+#define GST_OMX_VIDEO_ENC_STRIDE_DEFAULT (1)
+#define GST_OMX_VIDEO_ENC_SLICEHEIGHT_DEFAULT (1)
 
 /* class initialization */
 
@@ -201,10 +204,12 @@ gst_omx_video_enc_class_init (GstOMXVideoEncClass * klass)
           GST_PARAM_MUTABLE_READY));
 
   g_object_class_install_property (gobject_class, PROP_STRIDE,
-      g_param_spec_boolean ("stride", "stride of Encoder input",
-          "stride of Encoder's raw input data, "
-          "Enable it when Decoder's o/p(with stride) given to Encoder", FALSE,
-          G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
+      g_param_spec_uint ("stride", "Value of stride",
+          "Set it when input has alignment requirement in width (1=component default)",
+          0, G_MAXUINT, GST_OMX_VIDEO_ENC_STRIDE_DEFAULT,
+          G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS |
+          GST_PARAM_MUTABLE_READY));
+
 
   g_object_class_install_property (gobject_class, PROP_INPUT_MODE,
       g_param_spec_enum ("ip-mode", "input mode",
@@ -220,6 +225,14 @@ gst_omx_video_enc_class_init (GstOMXVideoEncClass * klass)
           0, G_MAXUINT, GST_OMX_VIDEO_ENC_L2CACHE_DEFAULT,
           G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS |
           GST_PARAM_MUTABLE_READY));
+
+  g_object_class_install_property (gobject_class, PROP_SLICEHEIGHT,
+      g_param_spec_uint ("sliceHeight", "Value of nsliceHeight",
+          "Set it when input has alignment requirement in height (1=component default)",
+          0, G_MAXUINT, GST_OMX_VIDEO_ENC_SLICEHEIGHT_DEFAULT,
+          G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS |
+          GST_PARAM_MUTABLE_READY));
+
 
   element_class->change_state =
       GST_DEBUG_FUNCPTR (gst_omx_video_enc_change_state);
@@ -333,6 +346,7 @@ gst_omx_video_enc_open (GstVideoEncoder * encoder)
   memset (&enable_board, 0, sizeof (enable_board));
   enable_board.bEnable = use_board;
   OMX_SetParameter (self->enc->handle, type, &enable_board);
+
 
   OMX_GetExtensionIndex (self->enc->handle,
       (OMX_STRING) "OMX.allegro.linux.enableDMA", &DMAtype);
@@ -549,7 +563,7 @@ gst_omx_video_enc_set_property (GObject * object, guint prop_id,
       self->quant_b_frames = g_value_get_uint (value);
       break;
     case PROP_STRIDE:
-      self->stride = g_value_get_boolean (value);
+      self->stride = g_value_get_uint (value);
       break;
     case PROP_INPUT_MODE:
       self->input_mode = g_value_get_enum (value);
@@ -559,6 +573,9 @@ gst_omx_video_enc_set_property (GObject * object, guint prop_id,
       break;
     case PROP_L2CACHE:
       self->l2cache = g_value_get_uint (value);
+      break;
+    case PROP_SLICEHEIGHT:
+      self->sliceHeight = g_value_get_uint (value);
       break;
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
@@ -589,13 +606,16 @@ gst_omx_video_enc_get_property (GObject * object, guint prop_id, GValue * value,
       g_value_set_uint (value, self->quant_b_frames);
       break;
     case PROP_STRIDE:
-      g_value_set_boolean (value, self->stride);
+      g_value_set_uint (value, self->stride);
       break;
     case PROP_INPUT_MODE:
       g_value_set_enum (value, self->input_mode);
       break;
     case PROP_L2CACHE:
       g_value_set_uint (value, self->l2cache);
+      break;
+    case PROP_SLICEHEIGHT:
+      g_value_set_uint (value, self->sliceHeight);
       break;
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
@@ -1200,7 +1220,7 @@ gst_omx_video_enc_set_format (GstVideoEncoder * encoder,
 
   port_def.format.video.nFrameWidth = info->width;
   if (self->stride) {
-    port_def.nBufferAlignment = 256;
+    port_def.nBufferAlignment = self->stride;
   }
   if (port_def.nBufferAlignment)
     port_def.format.video.nStride =
@@ -1210,8 +1230,10 @@ gst_omx_video_enc_set_format (GstVideoEncoder * encoder,
     port_def.format.video.nStride = GST_ROUND_UP_4 (info->width);       /* safe (?) default */
 
   port_def.format.video.nFrameHeight = info->height;
-  if (self->stride) {
-    port_def.format.video.nSliceHeight = GST_ROUND_UP_64 (info->height);
+  if (self->sliceHeight) {
+    port_def.format.video.nSliceHeight =
+        (info->height + self->sliceHeight - 1) &
+        (~(self->sliceHeight - 1));
   } else {
     port_def.format.video.nSliceHeight = info->height;
   }

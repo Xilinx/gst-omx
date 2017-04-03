@@ -79,6 +79,7 @@ struct _GstOMXVideoEnc
   guint32 stride;
   guint32 input_mode;
   guint32 l2cache;
+  guint32 sliceHeight;
 
   GstFlowReturn downstream_flow_ret;
 };
