@@ -66,8 +66,8 @@ enum
 #endif
 #define GST_OMX_H264_VIDEO_ENC_PERIODICITY_OF_IDR_FRAMES_DEFAULT    (0xffffffff)
 #define GST_OMX_H264_VIDEO_ENC_INTERVAL_OF_CODING_INTRA_FRAMES_DEFAULT (0xffffffff)
-#define GST_OMX_H264_ENC_P_FRAMES_DEFAULT (0xffffffff)
-#define GST_OMX_H264_ENC_B_FRAMES_DEFAULT (0xffffffff)
+#define GST_OMX_H264_ENC_P_FRAMES_DEFAULT (30)
+#define GST_OMX_H264_ENC_B_FRAMES_DEFAULT (0)
 
 /* class initialization */
 
@@ -180,14 +180,14 @@ gst_omx_h264_enc_class_init (GstOMXH264EncClass * klass)
 
   g_object_class_install_property (gobject_class, PROP_P_FRAMES,
       g_param_spec_uint ("p-frames", "Number of P-Frames",
-          "Number of P-Frames between I-frames (0xffffffff=component default)",
+          "Number of P-Frames between I-frames (30=component default)",
           0, G_MAXUINT, GST_OMX_H264_ENC_P_FRAMES_DEFAULT,
           G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS |
           GST_PARAM_MUTABLE_READY));
 
   g_object_class_install_property (gobject_class, PROP_B_FRAMES,
       g_param_spec_uint ("b-frames", "Number of B-Frames",
-          "Number of B-Frames between I-frames (0xffffffff=component default)",
+          "Number of B-Frames between I-frames (0=component default)",
           0, G_MAXUINT, GST_OMX_H264_ENC_B_FRAMES_DEFAULT,
           G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS |
           GST_PARAM_MUTABLE_READY));
