@@ -233,11 +233,9 @@ gst_omx_video_dec_open (GstVideoDecoder * decoder)
   gint in_port_index, out_port_index;
 
 #ifdef USE_OMX_TARGET_ZYNQ_USCALE_PLUS
-  OMX_INDEXTYPE type, DMAtype, MCUtype;
-  OMX_VIDEO_PARAM_ENABLEBOARD enable_board;
+  OMX_INDEXTYPE DMAtype;
   OMX_VIDEO_PARAM_ENABLEDMABUFFER enable_dmabuf;
-  OMX_VIDEO_PARAM_ENABLEMCU enable_mcu;
-  static int use_dmabuf = 0, use_mcu = 1, use_board = 0;
+  static int use_dmabuf = 0;
 #endif
 
   GST_DEBUG_OBJECT (self, "Opening decoder");
@@ -285,11 +283,6 @@ gst_omx_video_dec_open (GstVideoDecoder * decoder)
 
 #ifdef USE_OMX_TARGET_ZYNQ_USCALE_PLUS
   GST_INFO_OBJECT (self, "Custom settings needed for zynq VCU");
-  OMX_GetExtensionIndex (self->dec->handle,
-      (OMX_STRING) "OMX.allegro.enableBoard", &type);
-  memset (&enable_board, 0, sizeof (enable_board));
-  enable_board.bEnable = use_board;
-  OMX_SetParameter (self->dec->handle, type, &enable_board);
 
   if (self->op_mode == GST_OMX_DEC_OP_DMA_EXPORT) {
     OMX_GetExtensionIndex (self->dec->handle,
@@ -305,12 +298,6 @@ gst_omx_video_dec_open (GstVideoDecoder * decoder)
     enable_dmabuf.nPortIndex = 1;
     OMX_SetParameter (self->dec->handle, DMAtype, &enable_dmabuf);
   }
-
-  OMX_GetExtensionIndex (self->dec->handle,
-      (OMX_STRING) "OMX.allegro.enableMCU", &MCUtype);
-  memset (&enable_mcu, 0, sizeof (enable_mcu));
-  enable_mcu.bEnable = (OMX_BOOL) use_mcu;
-  OMX_SetParameter (self->dec->handle, MCUtype, &enable_mcu);
 #endif
 
 
