@@ -57,7 +57,7 @@ enum
 #endif
   PROP_PERIODICITYOFIDRFRAMES,
   PROP_INTERVALOFCODINGINTRAFRAMES,
-  PROP_P_FRAMES,
+  PROP_GOP_LENGTH,
   PROP_B_FRAMES,
 };
 
@@ -66,7 +66,7 @@ enum
 #endif
 #define GST_OMX_H264_VIDEO_ENC_PERIODICITY_OF_IDR_FRAMES_DEFAULT    (0xffffffff)
 #define GST_OMX_H264_VIDEO_ENC_INTERVAL_OF_CODING_INTRA_FRAMES_DEFAULT (0xffffffff)
-#define GST_OMX_H264_ENC_P_FRAMES_DEFAULT (30)
+#define GST_OMX_H264_ENC_GOP_LENGTH_DEFAULT (30)
 #define GST_OMX_H264_ENC_B_FRAMES_DEFAULT (0)
 
 /* class initialization */
@@ -84,53 +84,56 @@ gst_omx_h264_enc_open (GstVideoEncoder * encoder)
 {
   GstOMXH264Enc *self = GST_OMX_H264_ENC (encoder);
   GstOMXVideoEnc *omx_enc = GST_OMX_VIDEO_ENC (encoder);
+  guint32 p_frames;
+  OMX_VIDEO_PARAM_AVCTYPE avc_param;
+  OMX_ERRORTYPE err;
 
   if (!GST_VIDEO_ENCODER_CLASS (parent_class)->open (encoder))
     return FALSE;
 
-  if (self->p_frames != 0xffffffff || self->b_frames != 0xffffffff) {
-    OMX_VIDEO_PARAM_AVCTYPE avc_param;
-    OMX_ERRORTYPE err;
+  GST_OMX_INIT_STRUCT (&avc_param);
+  avc_param.nPortIndex = omx_enc->enc_out_port->index;
 
-    GST_OMX_INIT_STRUCT (&avc_param);
-    avc_param.nPortIndex = omx_enc->enc_out_port->index;
+  err = gst_omx_component_get_parameter (omx_enc->enc,
+      OMX_IndexParamVideoAvc, &avc_param);
 
-    err = gst_omx_component_get_parameter (omx_enc->enc,
-        OMX_IndexParamVideoAvc, &avc_param);
+  p_frames = (self->gop_length - 1) / (self->b_frames + 1);
 
-    if (err == OMX_ErrorNone) {
-      if (self->p_frames != 0xffffffff) {
-        GST_LOG_OBJECT (self, "Changing number of P-Frame to %d",
-            self->p_frames);
-        avc_param.nPFrames = self->p_frames;
-      }
-      if (self->b_frames != 0xffffffff) {
-        GST_LOG_OBJECT (self, "Changing number of B-Frame to %d",
-            self->b_frames);
-        avc_param.nBFrames = self->b_frames;
-      }
-
-      err =
-          gst_omx_component_set_parameter (omx_enc->enc,
-          OMX_IndexParamVideoAvc, &avc_param);
-      if (err == OMX_ErrorUnsupportedIndex) {
-        GST_WARNING_OBJECT (self,
-            "Setting AVC parameters not supported by the component");
-      } else if (err == OMX_ErrorUnsupportedSetting) {
-        GST_WARNING_OBJECT (self,
-            "Setting AVC parameters %u %u not supported by the component",
-            self->p_frames, self->b_frames);
-      } else if (err != OMX_ErrorNone) {
-        GST_ERROR_OBJECT (self,
-            "Failed to set AVC parameters: %s (0x%08x)",
-            gst_omx_error_to_string (err), err);
-        return FALSE;
-      }
-    } else {
-      GST_ERROR_OBJECT (self,
-          "Failed to get AVC parameters: %s (0x%08x)",
-          gst_omx_error_to_string (err), err);
+  if (err == OMX_ErrorNone) {
+    if (p_frames != avc_param.nPFrames) {
+      GST_LOG_OBJECT (self, "Changing number of P-Frame to %d",
+          p_frames);
+      avc_param.nPFrames = p_frames;
     }
+    if (self->b_frames != avc_param.nBFrames) {
+      if(p_frames == 0 &&  self->b_frames != 0) {
+        GST_ERROR_OBJECT (self, "Seting p_frames=0 & b_frames=(non zero) is not possible,taking b_frame=0");
+        self->b_frames = 0;
+      }
+      GST_LOG_OBJECT (self, "Changing number of B-Frame to %d",
+          self->b_frames);
+      avc_param.nBFrames = self->b_frames;
+    }
+    err =
+        gst_omx_component_set_parameter (omx_enc->enc,
+        OMX_IndexParamVideoAvc, &avc_param);
+    if (err == OMX_ErrorUnsupportedIndex) {
+      GST_WARNING_OBJECT (self,
+          "Setting AVC parameters not supported by the component");
+    } else if (err == OMX_ErrorUnsupportedSetting) {
+      GST_WARNING_OBJECT (self,
+          "Setting AVC parameters %u %u not supported by the component",
+          self->gop_length, self->b_frames);
+    } else if (err != OMX_ErrorNone) {
+      GST_ERROR_OBJECT (self,
+          "Failed to set AVC parameters: %s (0x%08x)",
+          gst_omx_error_to_string (err), err);
+      return FALSE;
+    }
+  } else {
+    GST_ERROR_OBJECT (self,
+        "Failed to get AVC parameters: %s (0x%08x)",
+        gst_omx_error_to_string (err), err);
   }
 
   return TRUE;
@@ -178,17 +181,17 @@ gst_omx_h264_enc_class_init (GstOMXH264EncClass * klass)
           G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS |
           GST_PARAM_MUTABLE_READY));
 
-  g_object_class_install_property (gobject_class, PROP_P_FRAMES,
-      g_param_spec_uint ("p-frames", "Number of P-Frames",
-          "Number of P-Frames between I-frames (30=component default)",
-          0, G_MAXUINT, GST_OMX_H264_ENC_P_FRAMES_DEFAULT,
+  g_object_class_install_property (gobject_class, PROP_GOP_LENGTH,
+      g_param_spec_uint ("Gop-Length", "Total Number of all frames in 1 GOP unit",
+          "Distance between two consecutive I frames(30=component default)",
+          1, 1000, GST_OMX_H264_ENC_GOP_LENGTH_DEFAULT,
           G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS |
           GST_PARAM_MUTABLE_READY));
 
   g_object_class_install_property (gobject_class, PROP_B_FRAMES,
       g_param_spec_uint ("b-frames", "Number of B-Frames",
-          "Number of B-Frames between I-frames (0=component default)",
-          0, G_MAXUINT, GST_OMX_H264_ENC_B_FRAMES_DEFAULT,
+          "Number of B-Frames between two consecutive P-frames(0=component default)",
+          0, 4, GST_OMX_H264_ENC_B_FRAMES_DEFAULT,
           G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS |
           GST_PARAM_MUTABLE_READY));
 
@@ -228,8 +231,8 @@ gst_omx_h264_enc_set_property (GObject * object, guint prop_id,
     case PROP_INTERVALOFCODINGINTRAFRAMES:
       self->interval_intraframes = g_value_get_uint (value);
       break;
-    case PROP_P_FRAMES:
-      self->p_frames = g_value_get_uint (value);
+    case PROP_GOP_LENGTH:
+      self->gop_length = g_value_get_uint (value);
       break;
     case PROP_B_FRAMES:
       self->b_frames = g_value_get_uint (value);
@@ -258,8 +261,8 @@ gst_omx_h264_enc_get_property (GObject * object, guint prop_id, GValue * value,
     case PROP_INTERVALOFCODINGINTRAFRAMES:
       g_value_set_uint (value, self->interval_intraframes);
       break;
-    case PROP_P_FRAMES:
-      g_value_set_uint (value, self->p_frames);
+    case PROP_GOP_LENGTH:
+      g_value_set_uint (value, self->gop_length);
       break;
     case PROP_B_FRAMES:
       g_value_set_uint (value, self->b_frames);
@@ -281,7 +284,7 @@ gst_omx_h264_enc_init (GstOMXH264Enc * self)
       GST_OMX_H264_VIDEO_ENC_PERIODICITY_OF_IDR_FRAMES_DEFAULT;
   self->interval_intraframes =
       GST_OMX_H264_VIDEO_ENC_INTERVAL_OF_CODING_INTRA_FRAMES_DEFAULT;
-  self->p_frames = GST_OMX_H264_ENC_P_FRAMES_DEFAULT;
+  self->gop_length = GST_OMX_H264_ENC_GOP_LENGTH_DEFAULT;
   self->b_frames = GST_OMX_H264_ENC_B_FRAMES_DEFAULT;
 }
 
