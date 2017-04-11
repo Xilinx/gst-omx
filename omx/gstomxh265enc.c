@@ -104,6 +104,7 @@ gst_omx_h265_enc_open (GstVideoEncoder * encoder)
   GstOMXH265Enc *self = GST_OMX_H265_ENC (encoder);
   GstOMXVideoEnc *omx_enc = GST_OMX_VIDEO_ENC (encoder);
   guint32 p_frames;
+  guint32 b_frames;
   OMX_VIDEO_PARAM_HEVCTYPE hevc_param;
   OMX_ERRORTYPE err;
 
@@ -116,7 +117,25 @@ gst_omx_h265_enc_open (GstVideoEncoder * encoder)
   err = gst_omx_component_get_parameter (omx_enc->enc,
       OMX_IndexParamVideoHevc, &hevc_param);
 
-  p_frames = (self->gop_length - 1) / (self->b_frames + 1);
+  /* We will set OMX il's nPframes & nBframes parameter as below calculation
+     based on user's input of GopLength & NumBframes
+     nPframes(Number of P frames between each I frame) = GopLength/(NumBframes+1) - 1
+     nBframes(Number of B frames between each I frame) = GopLength - (nPframes+1)
+     NOTE: We have one constraint that user must provide GopLength in multiple of NumBframes+1.
+  */
+  if(self->gop_length % (self->b_frames + 1)) {
+	if(self->gop_length == 1) {
+		GST_LOG_OBJECT (self, "GopLength is 1 so its only Intra. Setting b_frames as 0\n");
+		self->b_frames = 0;
+	} else {
+		GST_ERROR_OBJECT (self, "GopLength should be in multiple of (b-frames + 1).Now setting it to default value");
+		self->gop_length = GST_OMX_H265_ENC_GOP_LENGTH_DEFAULT;
+		self->b_frames = GST_OMX_H265_ENC_B_FRAMES_DEFAULT;
+	}
+  }
+
+  p_frames = ( (self->gop_length) / (self->b_frames + 1) )  - 1;
+  b_frames = self->gop_length - (p_frames + 1);
 
   if (err == OMX_ErrorNone) {
     if (p_frames != hevc_param.nPFrames) {
@@ -124,14 +143,10 @@ gst_omx_h265_enc_open (GstVideoEncoder * encoder)
           p_frames);
       hevc_param.nPFrames = p_frames;
     }
-    if (self->b_frames != hevc_param.nBFrames) {
-      if(p_frames == 0 &&  self->b_frames != 0) {
-        GST_ERROR_OBJECT (self, "Seting p_frames=0 & b_frames=(non zero) is not possible,taking b_frame=0");
-	self->b_frames = 0;
-      }
+    if (b_frames != hevc_param.nBFrames) {
       GST_LOG_OBJECT (self, "Changing number of B-Frame to %d",
-          self->b_frames);
-      hevc_param.nBFrames = self->b_frames;
+          b_frames);
+      hevc_param.nBFrames = b_frames;
     }
     err =
         gst_omx_component_set_parameter (omx_enc->enc,
@@ -175,7 +190,7 @@ gst_omx_h265_enc_class_init (GstOMXH265EncClass * klass)
   gobject_class->get_property = gst_omx_h265_enc_get_property;
 
   g_object_class_install_property (gobject_class, PROP_GOP_LENGTH,
-      g_param_spec_uint ("Gop-Length", "Total Number of all frames in 1 GOP unit",
+      g_param_spec_uint ("Gop-Length", "Number of all frames in 1 GOP, Must be in multiple of (b-frames+1)",
           "Distance between two consecutive I frames(30=component default)",
           1, 1000, GST_OMX_H265_ENC_GOP_LENGTH_DEFAULT,
           G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS |
