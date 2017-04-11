@@ -29,6 +29,8 @@ gst_omx_h264_utils_get_profile_from_str (const gchar * profile)
 {
   if (g_str_equal (profile, "baseline")) {
     return OMX_VIDEO_AVCProfileBaseline;
+  } else if (g_str_equal (profile, "constrained-baseline")) {
+    return OMX_VIDEO_AVCProfileBaseline;
   } else if (g_str_equal (profile, "main")) {
     return OMX_VIDEO_AVCProfileMain;
   } else if (g_str_equal (profile, "extended")) {
