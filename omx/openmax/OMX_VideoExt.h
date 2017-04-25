@@ -307,6 +307,7 @@ typedef enum AL_INDEX_PARAM_VIDEO_TYPE
   OMX_IndexParamVideoEnableBoard,
   OMX_IndexParamVideoEnableMCU,
   OMX_IndexParamVideoL2Cache,
+  OMX_IndexParamVideoQpMode,
   OMX_IndexParamVideoEnableDMA,
 }AL_INDEX_PARAM_VIDEO_TYPE;
 
@@ -360,6 +361,21 @@ typedef struct OMX_VIDEO_PARAM_L2CACHE
   OMX_VERSIONTYPE nVersion;
   OMX_U32 nL2CacheSize;
 }OMX_VIDEO_PARAM_L2CACHE;
+
+#define OMX_AL_CUSTOMPARAM_QPMODE "OMX.allegro.qpMode"
+typedef enum OMX_VIDEO_QPMODETYPE
+{
+        OMX_Video_QpModeAuto = 0x0,
+        OMX_Video_QpModeUniform = 0x1,
+}OMX_VIDEO_QPMODETYPE;
+
+typedef struct OMX_VIDEO_PARAM_QPMODE
+{
+  OMX_U32 nSize;  /**< Size of the structure in bytes */
+  OMX_VERSIONTYPE nVersion; /**< OMX speicification version information */
+  OMX_U32 nPortIndex; /**< Port that this structure applies to */
+  OMX_VIDEO_QPMODETYPE eMode; /**< Select the Quantization mode */
+}OMX_VIDEO_PARAM_QPMODE;
 
 
 #endif

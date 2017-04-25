@@ -80,6 +80,25 @@ gst_omx_video_enc_input_mode_type (void)
   return qtype;
 }
 
+#define GST_TYPE_OMX_VIDEO_ENC_QP_MODE_TYPE (gst_omx_video_enc_qp_mode_type ())
+static GType
+gst_omx_video_enc_qp_mode_type (void)
+{
+  static GType qtype = 0;
+
+  if (qtype == 0) {
+    static const GEnumValue values[] = {
+      {OMX_Video_QpModeAuto, "QpModeAuto",
+          "auto"},
+      {OMX_Video_QpModeUniform, "QpModeUniform", "uniform"},
+      {0, NULL, NULL}
+    };
+
+    qtype = g_enum_register_static ("GstOMXVideoEncQpModeType", values);
+  }
+  return qtype;
+}
+
 /* prototypes */
 static void gst_omx_video_enc_finalize (GObject * object);
 static void gst_omx_video_enc_set_property (GObject * object, guint prop_id,
@@ -127,7 +146,8 @@ enum
   PROP_STRIDE,
   PROP_INPUT_MODE,
   PROP_L2CACHE,
-  PROP_SLICEHEIGHT
+  PROP_SLICEHEIGHT,
+  PROP_QPMODE
 };
 
 /* FIXME: Better defaults */
@@ -140,6 +160,7 @@ enum
 #define GST_OMX_VIDEO_ENC_L2CACHE_DEFAULT (0)
 #define GST_OMX_VIDEO_ENC_STRIDE_DEFAULT (1)
 #define GST_OMX_VIDEO_ENC_SLICEHEIGHT_DEFAULT (1)
+#define GST_OMX_VIDEO_ENC_QP_MODE_DEFAULT (0x0)
 
 /* class initialization */
 
@@ -154,6 +175,7 @@ gboolean (*sink_event_backup) (GstVideoEncoder * encoder, GstEvent * event);
 GList *buffer_list = NULL;
 gint g_dmalist_count = 0;
 gint bufpool_complete = 0;
+guint32 qp_mode;
 
 static void
 gst_omx_video_enc_class_init (GstOMXVideoEncClass * klass)
@@ -233,6 +255,13 @@ gst_omx_video_enc_class_init (GstOMXVideoEncClass * klass)
           G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS |
           GST_PARAM_MUTABLE_READY));
 
+  g_object_class_install_property (gobject_class, PROP_QPMODE,
+      g_param_spec_enum ("qpmode", "Qp mode type",
+          "Type of QP mode selection for encoder",
+          GST_TYPE_OMX_VIDEO_ENC_QP_MODE_TYPE,
+          GST_OMX_VIDEO_ENC_QP_MODE_DEFAULT,
+          G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS |
+          GST_PARAM_MUTABLE_READY));
 
   element_class->change_state =
       GST_DEBUG_FUNCPTR (gst_omx_video_enc_change_state);
@@ -284,11 +313,12 @@ gst_omx_video_enc_open (GstVideoEncoder * encoder)
   gint in_port_index, out_port_index;
 
 #ifdef USE_OMX_TARGET_ZYNQ_USCALE_PLUS
-  OMX_INDEXTYPE type, DMAtype, MCUtype, L2CACHEtype;
+  OMX_INDEXTYPE type, DMAtype, MCUtype, L2CACHEtype, QPMODEtype;
   OMX_VIDEO_PARAM_ENABLEBOARD enable_board;
   OMX_VIDEO_PARAM_ENABLEDMABUFFER enable_dmabuf;
   OMX_VIDEO_PARAM_ENABLEMCU enable_mcu;
   OMX_VIDEO_PARAM_L2CACHE l2cache_value;
+  OMX_VIDEO_PARAM_QPMODE qpmode_value;
   OMX_ERRORTYPE err;
 
   static int use_dmabuf = 0, use_mcu = 1, use_board = 0;
@@ -381,6 +411,26 @@ gst_omx_video_enc_open (GstVideoEncoder * encoder)
             l2cache_value.nL2CacheSize);
 
         }
+  }
+
+  if (self->enc_out_port) {
+	OMX_GetExtensionIndex (self->enc->handle,
+	(OMX_STRING) "OMX.allegro.qpMode", &QPMODEtype);
+	GST_OMX_INIT_STRUCT (&qpmode_value);
+	qpmode_value.eMode = (OMX_U32) qp_mode;
+	qpmode_value.nPortIndex = self->enc_out_port->index;
+	err =
+	gst_omx_component_set_parameter (self->enc,
+	QPMODEtype, &qpmode_value);
+	if (err != OMX_ErrorNone) {
+		GST_ERROR_OBJECT (self,
+		"Failed to set Qp Mode type parameters: %s (0x%08x)",
+		gst_omx_error_to_string (err), err);
+		return FALSE;
+	} else {
+		GST_DEBUG_OBJECT (self, "QP mode type is updated to %d",
+		qpmode_value.eMode);
+	}
   }
 #endif
 
@@ -588,6 +638,9 @@ gst_omx_video_enc_set_property (GObject * object, guint prop_id,
     case PROP_SLICEHEIGHT:
       self->sliceHeight = g_value_get_uint (value);
       break;
+    case PROP_QPMODE:
+      qp_mode = g_value_get_enum (value);
+      break;
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
       break;
@@ -627,6 +680,9 @@ gst_omx_video_enc_get_property (GObject * object, guint prop_id, GValue * value,
       break;
     case PROP_SLICEHEIGHT:
       g_value_set_uint (value, self->sliceHeight);
+      break;
+    case PROP_QPMODE:
+      g_value_set_enum (value, qp_mode);
       break;
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
