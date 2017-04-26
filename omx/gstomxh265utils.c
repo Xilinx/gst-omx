@@ -30,10 +30,16 @@ gst_omx_h265_utils_get_profile_from_str (const gchar * profile)
     return OMX_VIDEO_HEVCProfileMain;
   } else if (g_str_equal (profile, "main-10")) {
     return OMX_VIDEO_HEVCProfileMain10;
-  } else if (g_str_equal (profile, "main-still-picture")) {
-    return OMX_VIDEO_HEVCProfileMainStillPicture;
+#if !USE_OMX_TARGET_ZYNQ_USCALE_PLUS
+ } else if (g_str_equal (profile_string, "main-still-picture")) {
+   param.eProfile = OMX_VIDEO_HEVCProfileMainStillPicture;
+#else
+  } else if (g_str_equal (profile, "mainstill")) {
+    return OMX_VIDEO_HEVCProfileMainStill;
+  } else if (g_str_equal (profile, "main422")) {
+    return OMX_VIDEO_HEVCProfileMain422;
+#endif
   }
-
   return OMX_VIDEO_HEVCProfileMax;
 }
 
@@ -96,5 +102,5 @@ gst_omx_h265_utils_get_level_from_str (const gchar * tier, const gchar * level)
       return OMX_VIDEO_HEVCHighTierLevel62;
   }
 
-  return OMX_VIDEO_HEVCLevelMax;
+  return OMX_VIDEO_HEVCHighTierMax;
 }

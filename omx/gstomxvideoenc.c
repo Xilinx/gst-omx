@@ -80,7 +80,9 @@ gst_omx_video_enc_input_mode_type (void)
   return qtype;
 }
 
+#if 0
 #define GST_TYPE_OMX_VIDEO_ENC_QP_MODE_TYPE (gst_omx_video_enc_qp_mode_type ())
+
 static GType
 gst_omx_video_enc_qp_mode_type (void)
 {
@@ -98,7 +100,7 @@ gst_omx_video_enc_qp_mode_type (void)
   }
   return qtype;
 }
-
+#endif
 /* prototypes */
 static void gst_omx_video_enc_finalize (GObject * object);
 static void gst_omx_video_enc_set_property (GObject * object, guint prop_id,
@@ -254,7 +256,7 @@ gst_omx_video_enc_class_init (GstOMXVideoEncClass * klass)
           0, G_MAXUINT, GST_OMX_VIDEO_ENC_SLICEHEIGHT_DEFAULT,
           G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS |
           GST_PARAM_MUTABLE_READY));
-
+#if 0
   g_object_class_install_property (gobject_class, PROP_QPMODE,
       g_param_spec_enum ("qpmode", "Qp mode type",
           "Type of QP mode selection for encoder",
@@ -262,7 +264,7 @@ gst_omx_video_enc_class_init (GstOMXVideoEncClass * klass)
           GST_OMX_VIDEO_ENC_QP_MODE_DEFAULT,
           G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS |
           GST_PARAM_MUTABLE_READY));
-
+#endif
   element_class->change_state =
       GST_DEBUG_FUNCPTR (gst_omx_video_enc_change_state);
 
@@ -313,6 +315,7 @@ gst_omx_video_enc_open (GstVideoEncoder * encoder)
   gint in_port_index, out_port_index;
 
 #ifdef USE_OMX_TARGET_ZYNQ_USCALE_PLUS
+#if 0
   OMX_INDEXTYPE DMAtype, L2CACHEtype, QPMODEtype;
   OMX_VIDEO_PARAM_ENABLEDMABUFFER enable_dmabuf;
   OMX_VIDEO_PARAM_L2CACHE l2cache_value;
@@ -324,6 +327,7 @@ gst_omx_video_enc_open (GstVideoEncoder * encoder)
   if ((self->input_mode == OMX_Enc_InputMode_DMABufImport) ||
       (self->input_mode == OMX_Enc_InputMode_DMABufExport))
     use_dmabuf = 1;
+#endif
 #endif
 
   self->enc =
@@ -369,6 +373,7 @@ gst_omx_video_enc_open (GstVideoEncoder * encoder)
   self->enc_out_port = gst_omx_component_add_port (self->enc, out_port_index);
 
 #ifdef USE_OMX_TARGET_ZYNQ_USCALE_PLUS
+#if 0
   GST_INFO_OBJECT (self, "Custom settings needed for zynq VCU");
 
   OMX_GetExtensionIndex (self->enc->handle,
@@ -418,6 +423,7 @@ gst_omx_video_enc_open (GstVideoEncoder * encoder)
 		qpmode_value.eMode);
 	}
   }
+#endif
 #endif
 
   if (!self->enc_in_port || !self->enc_out_port)

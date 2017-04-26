@@ -54,6 +54,8 @@
 
 #if defined(HAVE_VIDEO_EXT) || defined(USE_OMX_TARGET_ZYNQ_USCALE_PLUS)
 #include <OMX_VideoExt.h>
+#include <OMX_ComponentExt.h>
+#include <OMX_IndexExt.h>
 #endif
 
 #ifdef GST_OMX_STRUCT_PACKING

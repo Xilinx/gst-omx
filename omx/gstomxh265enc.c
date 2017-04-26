@@ -285,7 +285,7 @@ gst_omx_h265_enc_set_format (GstOMXVideoEnc * enc, GstOMXPort * port,
       level_string = gst_structure_get_string (s, "level");
       if (tier_string && level_string) {
         param.eLevel = gst_omx_h265_utils_get_level_from_str (tier_string, level_string);
-        if (param.eLevel == OMX_VIDEO_HEVCLevelMax)
+        if (param.eLevel == OMX_VIDEO_HEVCHighTierMax)
           goto unsupported_level;
       }
 
@@ -364,10 +364,18 @@ gst_omx_h265_enc_get_caps (GstOMXVideoEnc * enc, GstOMXPort * port,
       case OMX_VIDEO_HEVCProfileMain10:
         profile = "main-10";
         break;
+#if !USE_OMX_TARGET_ZYNQ_USCALE_PLUS
       case OMX_VIDEO_HEVCProfileMainStillPicture:
         profile = "main-still-picture";
         break;
-
+#else
+      case OMX_VIDEO_HEVCProfileMainStill:
+        profile = "mainstill";
+        break;
+      case OMX_VIDEO_HEVCProfileMain422:
+        profile = "main422";
+        break;
+#endif
       default:
         g_assert_not_reached ();
         return NULL;

@@ -233,9 +233,9 @@ gst_omx_video_dec_open (GstVideoDecoder * decoder)
   gint in_port_index, out_port_index;
 
 #ifdef USE_OMX_TARGET_ZYNQ_USCALE_PLUS
-  OMX_INDEXTYPE DMAtype;
-  OMX_VIDEO_PARAM_ENABLEDMABUFFER enable_dmabuf;
-  static int use_dmabuf = 0;
+  OMX_INDEXTYPE DMAType;
+  OMX_PORT_PARAM_BUFFERMODE dmaBuffer;
+  OMX_BUFFERMODE bufferMode = OMX_BUF_DMA;
 #endif
 
   GST_DEBUG_OBJECT (self, "Opening decoder");
@@ -285,19 +285,19 @@ gst_omx_video_dec_open (GstVideoDecoder * decoder)
   GST_INFO_OBJECT (self, "Custom settings needed for zynq VCU");
 
   if (self->op_mode == GST_OMX_DEC_OP_DMA_EXPORT) {
-    OMX_GetExtensionIndex (self->dec->handle,
-        (OMX_STRING) "OMX.allegro.linux.enableDMA", &DMAtype);
-    use_dmabuf = 1;
-    memset (&enable_dmabuf, 0, sizeof (enable_dmabuf));
-    enable_dmabuf.nSize = sizeof (enable_dmabuf);
-    enable_dmabuf.nVersion.s.nVersionMajor = OMXIL_MAJOR_VERSION;
-    enable_dmabuf.nVersion.s.nVersionMinor = OMXIL_MINOR_VERSION;
-    enable_dmabuf.nVersion.s.nRevision = OMXIL_REVISION;
-    enable_dmabuf.nVersion.s.nStep = OMXIL_STEP;
-    enable_dmabuf.bEnable = (OMX_BOOL) use_dmabuf;
-    enable_dmabuf.nPortIndex = 1;
-    OMX_SetParameter (self->dec->handle, DMAtype, &enable_dmabuf);
-  }
+      OMX_INDEXTYPE DMAType;
+      OMX_PORT_PARAM_BUFFERMODE dmaBuffer;
+      OMX_BUFFERMODE bufferMode = OMX_BUF_DMA;
+
+      OMX_GetExtensionIndex (self->dec->handle,
+          (OMX_STRING) "OMX.allegro.bufferMode", &DMAType);
+
+      GST_OMX_INIT_STRUCT (&dmaBuffer);
+      dmaBuffer.eMode = bufferMode;
+      dmaBuffer.nPortIndex = self->dec_out_port->index;
+
+      OMX_SetParameter (self->dec->handle, DMAType, &dmaBuffer);
+ }
 #endif
 
 
@@ -2267,6 +2267,7 @@ gst_omx_video_dec_set_format (GstVideoDecoder * decoder,
     return FALSE;
   }
 #ifdef USE_OMX_TARGET_ZYNQ_USCALE_PLUS
+#if 0
   GST_DEBUG_OBJECT (self, "Low latency mode: %d", self->low_latency);
 
   if (self->low_latency) {
@@ -2284,6 +2285,7 @@ gst_omx_video_dec_set_format (GstVideoDecoder * decoder,
     latency.eMode = AL_LATENCY_LOW;
     OMX_SetParameter (self->dec->handle, latencyType, &latency);
   }
+#endif
 #endif
 
   gst_omx_video_dec_set_latency (self);

@@ -144,7 +144,8 @@ gst_omx_h265_dec_set_format (GstOMXVideoDec * dec, GstOMXPort * port,
       if (tier_string && level_string) {
         param.eLevel =
             gst_omx_h265_utils_get_level_from_str (tier_string, level_string);
-        if (param.eLevel == OMX_VIDEO_HEVCLevelMax)
+
+        if (param.eLevel == OMX_VIDEO_HEVCHighTierMax)
           goto unsupported_level;
       }
 
