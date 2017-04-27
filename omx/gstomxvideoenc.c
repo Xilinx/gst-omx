@@ -80,7 +80,6 @@ gst_omx_video_enc_input_mode_type (void)
   return qtype;
 }
 
-#if 0
 #define GST_TYPE_OMX_VIDEO_ENC_QP_MODE_TYPE (gst_omx_video_enc_qp_mode_type ())
 
 static GType
@@ -90,9 +89,9 @@ gst_omx_video_enc_qp_mode_type (void)
 
   if (qtype == 0) {
     static const GEnumValue values[] = {
-      {OMX_Video_QpModeAuto, "QpModeAuto",
+      {AUTO_QP, "QpModeAuto",
           "auto"},
-      {OMX_Video_QpModeUniform, "QpModeUniform", "uniform"},
+      {UNIFORM_QP, "QpModeUniform", "uniform"},
       {0, NULL, NULL}
     };
 
@@ -100,7 +99,6 @@ gst_omx_video_enc_qp_mode_type (void)
   }
   return qtype;
 }
-#endif
 /* prototypes */
 static void gst_omx_video_enc_finalize (GObject * object);
 static void gst_omx_video_enc_set_property (GObject * object, guint prop_id,
@@ -256,7 +254,7 @@ gst_omx_video_enc_class_init (GstOMXVideoEncClass * klass)
           0, G_MAXUINT, GST_OMX_VIDEO_ENC_SLICEHEIGHT_DEFAULT,
           G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS |
           GST_PARAM_MUTABLE_READY));
-#if 0
+
   g_object_class_install_property (gobject_class, PROP_QPMODE,
       g_param_spec_enum ("qpmode", "Qp mode type",
           "Type of QP mode selection for encoder",
@@ -264,7 +262,7 @@ gst_omx_video_enc_class_init (GstOMXVideoEncClass * klass)
           GST_OMX_VIDEO_ENC_QP_MODE_DEFAULT,
           G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS |
           GST_PARAM_MUTABLE_READY));
-#endif
+
   element_class->change_state =
       GST_DEBUG_FUNCPTR (gst_omx_video_enc_change_state);
 
@@ -315,11 +313,9 @@ gst_omx_video_enc_open (GstVideoEncoder * encoder)
   gint in_port_index, out_port_index;
 
 #ifdef USE_OMX_TARGET_ZYNQ_USCALE_PLUS
-#if 0
-  OMX_INDEXTYPE DMAtype, L2CACHEtype, QPMODEtype;
-  OMX_VIDEO_PARAM_ENABLEDMABUFFER enable_dmabuf;
-  OMX_VIDEO_PARAM_L2CACHE l2cache_value;
-  OMX_VIDEO_PARAM_QPMODE qpmode_value;
+  OMX_INDEXTYPE DMAtype, CHANNELtype;
+  OMX_PORT_PARAM_BUFFERMODE enable_dmabuf;
+  OMX_VIDEO_PARAM_CHANNEL channel_setting;
   OMX_ERRORTYPE err;
 
   static int use_dmabuf = 0;
@@ -327,7 +323,6 @@ gst_omx_video_enc_open (GstVideoEncoder * encoder)
   if ((self->input_mode == OMX_Enc_InputMode_DMABufImport) ||
       (self->input_mode == OMX_Enc_InputMode_DMABufExport))
     use_dmabuf = 1;
-#endif
 #endif
 
   self->enc =
@@ -373,55 +368,42 @@ gst_omx_video_enc_open (GstVideoEncoder * encoder)
   self->enc_out_port = gst_omx_component_add_port (self->enc, out_port_index);
 
 #ifdef USE_OMX_TARGET_ZYNQ_USCALE_PLUS
-#if 0
   GST_INFO_OBJECT (self, "Custom settings needed for zynq VCU");
 
   OMX_GetExtensionIndex (self->enc->handle,
-      (OMX_STRING) "OMX.allegro.linux.enableDMA", &DMAtype);
+      (OMX_STRING) "OMX.allegro.bufferMode", &DMAtype);
 
-  memset (&enable_dmabuf, 0, sizeof (enable_dmabuf));
-  enable_dmabuf.bEnable = (OMX_BOOL) use_dmabuf;
-  enable_dmabuf.nPortIndex = 0;
+  GST_OMX_INIT_STRUCT (&enable_dmabuf);
+  if(use_dmabuf)
+  	enable_dmabuf.eMode = OMX_BUF_DMA;
+  else
+  	enable_dmabuf.eMode = OMX_BUF_NORMAL;
+  enable_dmabuf.nPortIndex = self->enc_in_port->index;
   OMX_SetParameter (self->enc->handle, DMAtype, &enable_dmabuf);
 
+  OMX_GetExtensionIndex (self->enc->handle,
+	(OMX_STRING) "OMX.allegro.encoder.channel", &CHANNELtype);
+  GST_OMX_INIT_STRUCT (&channel_setting);
   if(self->l2cache) {
-	OMX_GetExtensionIndex (self->enc->handle,
-	(OMX_STRING) "OMX.allegro.l2cache", &L2CACHEtype);
-        GST_OMX_INIT_STRUCT (&l2cache_value);
-	l2cache_value.nL2CacheSize = (OMX_U32) self->l2cache;
-        err =
-            gst_omx_component_set_parameter (self->enc,
-            L2CACHEtype, &l2cache_value);
-        if (err != OMX_ErrorNone) {
-          GST_ERROR_OBJECT (self,
-              "Failed to set enc_buffer_size parameters: %s (0x%08x)",
-              gst_omx_error_to_string (err), err);
-          return FALSE;
-        } else {
-          GST_DEBUG_OBJECT (self, "L2cache buffer size is updated to %d",
-            l2cache_value.nL2CacheSize);
-
-        }
+	channel_setting.nL2CacheSize = (OMX_U32) self->l2cache;
   }
-
   if (self->enc_out_port) {
-	OMX_GetExtensionIndex (self->enc->handle,
-	(OMX_STRING) "OMX.allegro.qpMode", &QPMODEtype);
-	GST_OMX_INIT_STRUCT (&qpmode_value);
-	qpmode_value.eMode = (OMX_U32) qp_mode;
-	qpmode_value.nPortIndex = self->enc_out_port->index;
-	err =
-	gst_omx_component_set_parameter (self->enc,
-	QPMODEtype, &qpmode_value);
-	if (err != OMX_ErrorNone) {
-		GST_ERROR_OBJECT (self,
-		"Failed to set Qp Mode type parameters: %s (0x%08x)",
-		gst_omx_error_to_string (err), err);
-		return FALSE;
-	} else {
-		GST_DEBUG_OBJECT (self, "QP mode type is updated to %d",
-		qpmode_value.eMode);
-	}
+  	channel_setting.eQpControlMode = (OMX_U32) qp_mode; 
+  	channel_setting.nPortIndex = self->enc_out_port->index;
+  }
+  channel_setting.nNumSlices = 1;
+//FIXME: setting below parameters Break things 
+#if 0
+  err =
+      gst_omx_component_set_parameter (self->enc,
+      CHANNELtype, &channel_setting);
+  if (err != OMX_ErrorNone) {
+    GST_ERROR_OBJECT (self,
+        "Failed to channel setting parameters: %s (0x%08x)",
+        gst_omx_error_to_string (err), err);
+    return FALSE;
+  } else {
+    GST_DEBUG_OBJECT (self, "encoded channel settings are updated");
   }
 #endif
 #endif
