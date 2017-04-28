@@ -82,6 +82,12 @@ gst_omx_video_enc_input_mode_type (void)
 
 #define GST_TYPE_OMX_VIDEO_ENC_QP_MODE_TYPE (gst_omx_video_enc_qp_mode_type ())
 
+typedef enum {
+	GST_OMX_ENC_UNIFORM_QP,
+	GST_OMX_ENC_AUTO_QP
+}GstOMXVideoEncQpModeType;
+
+
 static GType
 gst_omx_video_enc_qp_mode_type (void)
 {
@@ -89,9 +95,8 @@ gst_omx_video_enc_qp_mode_type (void)
 
   if (qtype == 0) {
     static const GEnumValue values[] = {
-      {AUTO_QP, "QpModeAuto",
-          "auto"},
-      {UNIFORM_QP, "QpModeUniform", "uniform"},
+      {GST_OMX_ENC_UNIFORM_QP, "QpModeUniform", "uniform"},
+      {GST_OMX_ENC_AUTO_QP, "QpModeAuto", "auto"},
       {0, NULL, NULL}
     };
 
@@ -147,7 +152,8 @@ enum
   PROP_INPUT_MODE,
   PROP_L2CACHE,
   PROP_SLICEHEIGHT,
-  PROP_QPMODE
+  PROP_QPMODE,
+  PROP_SLICE
 };
 
 /* FIXME: Better defaults */
@@ -160,7 +166,8 @@ enum
 #define GST_OMX_VIDEO_ENC_L2CACHE_DEFAULT (0)
 #define GST_OMX_VIDEO_ENC_STRIDE_DEFAULT (1)
 #define GST_OMX_VIDEO_ENC_SLICEHEIGHT_DEFAULT (1)
-#define GST_OMX_VIDEO_ENC_QP_MODE_DEFAULT (0x0)
+#define GST_OMX_VIDEO_ENC_QP_MODE_DEFAULT GST_OMX_ENC_UNIFORM_QP 
+#define GST_OMX_VIDEO_ENC_SLICE_DEFAULT (1)
 
 /* class initialization */
 
@@ -175,7 +182,6 @@ gboolean (*sink_event_backup) (GstVideoEncoder * encoder, GstEvent * event);
 GList *buffer_list = NULL;
 gint g_dmalist_count = 0;
 gint bufpool_complete = 0;
-guint32 qp_mode;
 
 static void
 gst_omx_video_enc_class_init (GstOMXVideoEncClass * klass)
@@ -260,6 +266,13 @@ gst_omx_video_enc_class_init (GstOMXVideoEncClass * klass)
           "Type of QP mode selection for encoder",
           GST_TYPE_OMX_VIDEO_ENC_QP_MODE_TYPE,
           GST_OMX_VIDEO_ENC_QP_MODE_DEFAULT,
+          G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS |
+          GST_PARAM_MUTABLE_READY));
+  
+ g_object_class_install_property (gobject_class, PROP_SLICE,
+      g_param_spec_uint ("slice", "Number of slices",
+          "Specify the number of slice in one encoded frames (1=component default)",
+          1, 128, GST_OMX_VIDEO_ENC_SLICE_DEFAULT,
           G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS |
           GST_PARAM_MUTABLE_READY));
 
@@ -388,12 +401,17 @@ gst_omx_video_enc_open (GstVideoEncoder * encoder)
 	channel_setting.nL2CacheSize = (OMX_U32) self->l2cache;
   }
   if (self->enc_out_port) {
-  	channel_setting.eQpControlMode = (OMX_U32) qp_mode; 
-  	channel_setting.nPortIndex = self->enc_out_port->index;
+	if(self->qp_mode == GST_OMX_ENC_UNIFORM_QP)
+  		channel_setting.eQpControlMode = UNIFORM_QP;
+	else if(self->qp_mode == GST_OMX_ENC_AUTO_QP)
+  		channel_setting.eQpControlMode = AUTO_QP;
+	channel_setting.nPortIndex = self->enc_out_port->index;
   }
-  channel_setting.nNumSlices = 1;
-//FIXME: setting below parameters Break things 
-#if 0
+  if(self->slice) {
+  	channel_setting.nNumSlices = self->slice;
+  } else {
+  	channel_setting.nNumSlices = 1;
+  }
   err =
       gst_omx_component_set_parameter (self->enc,
       CHANNELtype, &channel_setting);
@@ -405,7 +423,6 @@ gst_omx_video_enc_open (GstVideoEncoder * encoder)
   } else {
     GST_DEBUG_OBJECT (self, "encoded channel settings are updated");
   }
-#endif
 #endif
 
   if (!self->enc_in_port || !self->enc_out_port)
@@ -613,7 +630,10 @@ gst_omx_video_enc_set_property (GObject * object, guint prop_id,
       self->sliceHeight = g_value_get_uint (value);
       break;
     case PROP_QPMODE:
-      qp_mode = g_value_get_enum (value);
+      self->qp_mode = g_value_get_enum (value);
+      break;
+    case PROP_SLICE:
+      self->slice = g_value_get_uint (value);
       break;
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
@@ -656,7 +676,10 @@ gst_omx_video_enc_get_property (GObject * object, guint prop_id, GValue * value,
       g_value_set_uint (value, self->sliceHeight);
       break;
     case PROP_QPMODE:
-      g_value_set_enum (value, qp_mode);
+      g_value_set_enum (value, self->qp_mode);
+      break;
+    case PROP_SLICE:
+      g_value_set_uint (value, self->slice);
       break;
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
