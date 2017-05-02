@@ -328,7 +328,7 @@ gst_omx_video_enc_open (GstVideoEncoder * encoder)
 #ifdef USE_OMX_TARGET_ZYNQ_USCALE_PLUS
   OMX_INDEXTYPE DMAtype, CHANNELtype;
   OMX_PORT_PARAM_BUFFERMODE enable_dmabuf;
-  OMX_VIDEO_PARAM_CHANNEL channel_setting;
+  OMX_VIDEO_PARAM_ENCODER_CHANNEL channel_setting;
   OMX_ERRORTYPE err;
 
   static int use_dmabuf = 0;
