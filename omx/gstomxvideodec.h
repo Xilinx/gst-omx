@@ -50,6 +50,7 @@ typedef struct _GstOMXVideoDecClass GstOMXVideoDecClass;
 #ifdef USE_OMX_TARGET_ZYNQ_USCALE_PLUS
 #define GST_TYPE_OMX_DEC_IP_MODE (gst_omx_dec_ip_mode_get_type ())
 #define GST_TYPE_OMX_DEC_OP_MODE (gst_omx_dec_op_mode_get_type ())
+#define GST_TYPE_OMX_DEC_LATENCY_MODE (gst_omx_dec_latency_mode_get_type ())
 
 GType gst_omx_dec_ip_mode_get_type (void);
 GType gst_omx_dec_op_mode_get_type (void);
@@ -105,7 +106,7 @@ GType gst_omx_dec_op_mode_get_type (void);
 #ifdef USE_OMX_TARGET_ZYNQ_USCALE_PLUS
        GstOMXDecIpMode ip_mode;
        GstOMXDecOpMode op_mode;
-       gboolean low_latency;
+       AL_EDpbMode latency_mode;
 #endif
      };
 

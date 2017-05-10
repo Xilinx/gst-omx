@@ -101,7 +101,7 @@ enum
 #ifdef USE_OMX_TARGET_ZYNQ_USCALE_PLUS
   PROP_IP_MODE,
   PROP_OP_MODE,
-  PROP_LOW_LATENCY,
+  PROP_LATENCY_MODE,
 #endif
 };
 
@@ -119,7 +119,7 @@ G_DEFINE_ABSTRACT_TYPE_WITH_CODE (GstOMXVideoDec, gst_omx_video_dec,
 
 #define DEFAULT_PROP_IP_MODE GST_OMX_DEC_IP_DEFAULT
 #define DEFAULT_PROP_OP_MODE GST_OMX_DEC_OP_DEFAULT
-#define DEFAULT_PROP_LOW_LATENCY FALSE
+#define DEFAULT_PROP_LATENCY_MODE AL_DPB_NORMAL
 
 GType
 gst_omx_dec_ip_mode_get_type (void)
@@ -153,6 +153,23 @@ gst_omx_dec_op_mode_get_type (void)
   }
   return omx_dec_op_mode;
 }
+
+GType
+gst_omx_dec_latency_mode_get_type (void)
+{
+  static GType omx_dec_latency_mode = 0;
+
+  if (!omx_dec_latency_mode) {
+    static const GEnumValue latency_modes[] = {
+      {AL_DPB_NORMAL, "Default Normal Mode", "normal"},
+      {AL_DPB_LOW_REF, "low latency mode", "lowlatency"},
+      {0, NULL, NULL}
+    };
+    omx_dec_latency_mode = g_enum_register_static ("GstOMXDecLatencyMode", latency_modes);
+  }
+  return omx_dec_latency_mode;
+}
+
 #endif
 
 
@@ -181,11 +198,11 @@ gst_omx_video_dec_class_init (GstOMXVideoDecClass * klass)
           GST_TYPE_OMX_DEC_OP_MODE,
           DEFAULT_PROP_OP_MODE, G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
 
-  g_object_class_install_property (gobject_class, PROP_LOW_LATENCY,
-      g_param_spec_boolean ("low-latency", "Low latency mode",
-          "Low latency mode",
-          DEFAULT_PROP_LOW_LATENCY,
-          G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
+ g_object_class_install_property (gobject_class, PROP_LATENCY_MODE,
+      g_param_spec_enum ("latency-mode", "Select latency mode",
+          "Decoder latency mode",
+          GST_TYPE_OMX_DEC_LATENCY_MODE,
+          DEFAULT_PROP_LATENCY_MODE, G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
 #endif
 
   element_class->change_state =
@@ -2267,25 +2284,22 @@ gst_omx_video_dec_set_format (GstVideoDecoder * decoder,
     return FALSE;
   }
 #ifdef USE_OMX_TARGET_ZYNQ_USCALE_PLUS
-#if 0
-  GST_DEBUG_OBJECT (self, "Low latency mode: %d", self->low_latency);
+  GST_DEBUG_OBJECT (self, "latency mode: %d", self->latency_mode);
 
-  if (self->low_latency) {
-    OMX_INDEXTYPE latencyType;
-    OMX_VIDEO_PARAM_DECODERLATENCY latency;
+  OMX_INDEXTYPE  CHANNELtype;
+  OMX_VIDEO_PARAM_DECODER_CHANNEL channel_setting;
 
-    OMX_GetExtensionIndex (self->dec->handle,
-        (OMX_STRING) "OMX.allegro.decoderLatency", &latencyType);
-    memset (&latency, 0, sizeof (latency));
-    latency.nSize = sizeof (latency);
-    latency.nVersion.s.nVersionMajor = OMXIL_MAJOR_VERSION;
-    latency.nVersion.s.nVersionMinor = OMXIL_MINOR_VERSION;
-    latency.nVersion.s.nRevision = OMXIL_REVISION;
-    latency.nVersion.s.nStep = OMXIL_STEP;
-    latency.eMode = AL_LATENCY_LOW;
-    OMX_SetParameter (self->dec->handle, latencyType, &latency);
-  }
-#endif
+  OMX_GetExtensionIndex (self->dec->handle,
+      (OMX_STRING) "OMX.allegro.decoder.channel", &CHANNELtype);
+  GST_OMX_INIT_STRUCT (&channel_setting);
+  channel_setting.nSize = sizeof (channel_setting);
+  channel_setting.nVersion.s.nVersionMajor = OMX_VERSION_MAJOR;
+  channel_setting.nVersion.s.nVersionMinor = OMX_VERSION_MINOR;
+  channel_setting.nVersion.s.nRevision = OMX_VERSION_REVISION;
+  channel_setting.nVersion.s.nStep = OMX_VERSION_STEP;
+  channel_setting.eDecodedPictureBufferMode = self->latency_mode;
+  channel_setting.nPortIndex = self->dec_in_port->index;
+  OMX_SetParameter (self->dec->handle, CHANNELtype, &channel_setting);
 #endif
 
   gst_omx_video_dec_set_latency (self);
@@ -2865,8 +2879,8 @@ gst_omx_video_dec_set_property (GObject * object, guint prop_id,
     case PROP_OP_MODE:
       self->op_mode = g_value_get_enum (value);
       break;
-    case PROP_LOW_LATENCY:
-      self->low_latency = g_value_get_boolean (value);
+    case PROP_LATENCY_MODE:
+      self->latency_mode = g_value_get_enum (value);
       break;
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
@@ -2886,8 +2900,8 @@ gst_omx_video_dec_get_property (GObject * object, guint prop_id,
     case PROP_OP_MODE:
       g_value_set_enum (value, self->op_mode);
       break;
-    case PROP_LOW_LATENCY:
-      g_value_set_boolean (value, self->low_latency);
+    case PROP_LATENCY_MODE:
+      g_value_set_enum (value, self->latency_mode);
       break;
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
