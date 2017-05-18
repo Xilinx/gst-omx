@@ -2299,6 +2299,7 @@ gst_omx_video_dec_set_format (GstVideoDecoder * decoder,
   channel_setting.nVersion.s.nStep = OMX_VERSION_STEP;
   channel_setting.eDecodedPictureBufferMode = self->latency_mode;
   channel_setting.nPortIndex = self->dec_in_port->index;
+  channel_setting.nBufferCountHeldByNextComponent = 5;
   OMX_SetParameter (self->dec->handle, CHANNELtype, &channel_setting);
 #endif
 
