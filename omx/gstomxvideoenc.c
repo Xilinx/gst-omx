@@ -399,9 +399,9 @@ gst_omx_video_enc_open (GstVideoEncoder * encoder)
   }
   if (self->enc_out_port) {
 	if(self->qp_mode == GST_OMX_ENC_UNIFORM_QP)
-  		channel_setting.eQpControlMode = UNIFORM_QP;
+  		channel_setting.eQpControlMode = OMX_UNIFORM_QP;
 	else if(self->qp_mode == GST_OMX_ENC_AUTO_QP)
-  		channel_setting.eQpControlMode = AUTO_QP;
+  		channel_setting.eQpControlMode = OMX_AUTO_QP;
 	channel_setting.nPortIndex = self->enc_out_port->index;
   }
   if(self->slice) {

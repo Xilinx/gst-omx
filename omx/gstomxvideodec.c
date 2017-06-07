@@ -119,7 +119,7 @@ G_DEFINE_ABSTRACT_TYPE_WITH_CODE (GstOMXVideoDec, gst_omx_video_dec,
 
 #define DEFAULT_PROP_IP_MODE GST_OMX_DEC_IP_DEFAULT
 #define DEFAULT_PROP_OP_MODE GST_OMX_DEC_OP_DEFAULT
-#define DEFAULT_PROP_LATENCY_MODE AL_DPB_NORMAL
+#define DEFAULT_PROP_LATENCY_MODE OMX_AL_DPB_NORMAL
 
 GType
 gst_omx_dec_ip_mode_get_type (void)
@@ -161,8 +161,8 @@ gst_omx_dec_latency_mode_get_type (void)
 
   if (!omx_dec_latency_mode) {
     static const GEnumValue latency_modes[] = {
-      {AL_DPB_NORMAL, "Default Normal Mode", "normal"},
-      {AL_DPB_LOW_REF, "low latency mode", "lowlatency"},
+      {OMX_AL_DPB_NORMAL, "Default Normal Mode", "normal"},
+      {OMX_AL_DPB_LOW_REF, "low latency mode", "lowlatency"},
       {0, NULL, NULL}
     };
     omx_dec_latency_mode = g_enum_register_static ("GstOMXDecLatencyMode", latency_modes);
