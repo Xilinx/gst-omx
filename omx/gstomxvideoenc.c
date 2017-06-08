@@ -179,9 +179,6 @@ G_DEFINE_ABSTRACT_TYPE_WITH_CODE (GstOMXVideoEnc, gst_omx_video_enc,
     GST_TYPE_VIDEO_ENCODER, DEBUG_INIT);
 
 gboolean (*sink_event_backup) (GstVideoEncoder * encoder, GstEvent * event);
-GList *buffer_list = NULL;
-gint g_dmalist_count = 0;
-gint bufpool_complete = 0;
 
 static void
 gst_omx_video_enc_class_init (GstOMXVideoEncClass * klass)
@@ -1195,7 +1192,6 @@ gst_omx_video_enc_set_format (GstVideoEncoder * encoder,
   OMX_PARAM_PORTDEFINITIONTYPE port_def;
   GstVideoInfo *info = &state->info;
   GList *negotiation_map = NULL, *l;
-  GList *buffer_list = NULL;
   GstMapInfo map_info;
   GstBuffer *mem = NULL;
   gint i;
@@ -1426,15 +1422,15 @@ gst_omx_video_enc_set_format (GstVideoEncoder * encoder,
         gst_omx_port_update_port_definition (self->enc_in_port, NULL);
 
         for (i = 0; i < self->enc_in_port->port_def.nBufferCountActual; i++)
-          buffer_list = g_list_append (buffer_list, map_info.data);
+          self->buffer_list = g_list_append (self->buffer_list, map_info.data);
 
         if (gst_omx_port_use_buffers (self->enc_in_port,
-                buffer_list) != OMX_ErrorNone)
+                self->buffer_list) != OMX_ErrorNone)
           return FALSE;
 
         gst_buffer_unmap (mem, &map_info);
         gst_buffer_unref (mem);
-        g_list_free (buffer_list);
+        g_list_free (self->buffer_list);
       }
 
       if (gst_omx_port_allocate_buffers (self->enc_out_port) != OMX_ErrorNone)
@@ -1744,9 +1740,7 @@ gst_omx_video_enc_handle_frame (GstVideoEncoder * encoder,
   GstOMXPort *port;
   GstOMXBuffer *buf;
   OMX_ERRORTYPE err;
-  static gint count = 0;
   gint fd1 = 0, fd2 = 0;
-  static GList *garray = NULL;
   gint i;
   self = GST_OMX_VIDEO_ENC (encoder);
 
@@ -1767,44 +1761,44 @@ gst_omx_video_enc_handle_frame (GstVideoEncoder * encoder,
 
 
   if (self->input_mode == OMX_Enc_InputMode_DMABufImport) {
-    count++;
-    if ((count == 1) && (bufpool_complete == 0)) {
+    self->count++;
+    if ((self->count == 1) && (self->bufpool_complete == 0)) {
       fd1 =
           gst_dmabuf_memory_get_fd (gst_buffer_peek_memory (frame->input_buffer,
               0));
       GST_FIXME_OBJECT (self, "Got 1st fd %d\n", fd1);
-      garray = g_list_append (garray, fd1);
+      self->garray = g_list_append (self->garray, fd1);
       frame->output_buffer = NULL;
       gst_video_encoder_finish_frame (self, frame);
       return self->downstream_flow_ret;
     }
-    if (bufpool_complete == 0) {
+    if (self->bufpool_complete == 0) {
       fd1 =
           gst_dmabuf_memory_get_fd (gst_buffer_peek_memory (frame->input_buffer,
               0));
       GST_FIXME_OBJECT (self, "Got next fd %d\n", fd1);
-      if (g_list_find (garray, fd1) != NULL) {
+      if (g_list_find (self->garray, fd1) != NULL) {
         GST_FIXME_OBJECT (self, "Bufferpool found completed \n");
-        bufpool_complete = 1;
+        self->bufpool_complete = 1;
       } else {
-        garray = g_list_append (garray, fd1);
+        self->garray = g_list_append (self->garray, fd1);
         frame->output_buffer = NULL;
         gst_video_encoder_finish_frame (self, frame);
         return self->downstream_flow_ret;
       }
     }
-    if (bufpool_complete == 1) {
+    if (self->bufpool_complete == 1) {
 
-      if (count == 1) {
+      if (self->count == 1) {
         GST_FIXME_OBJECT (self,
-            "Bufferpool found by event, It has %d buffers \n", g_dmalist_count);
-        bufpool_complete = 2;
-        buffer_list = g_list_reverse (buffer_list);
+            "Bufferpool found by event, It has %d buffers \n", self->g_dmalist_count);
+        self->bufpool_complete = 2;
+        self->buffer_list = g_list_reverse (self->buffer_list);
 
         gst_omx_port_update_port_definition (self->enc_in_port, NULL);
         GST_FIXME_OBJECT (self, "OMX Encoder BuffercountActual is %d\n",
             self->enc_in_port->port_def.nBufferCountActual);
-        self->enc_in_port->port_def.nBufferCountActual = g_dmalist_count;
+        self->enc_in_port->port_def.nBufferCountActual = self->g_dmalist_count;
         gst_omx_port_update_port_definition (self->enc_in_port,
             &self->enc_in_port->port_def);
         GST_FIXME_OBJECT (self, "Updated OMX Encoder BuffercountActual is %d\n",
@@ -1814,18 +1808,18 @@ gst_omx_video_enc_handle_frame (GstVideoEncoder * encoder,
 
         GST_FIXME_OBJECT (self,
             "Bufferpool found by fd tracing, It has %d buffers \n",
-            g_list_length (garray));
-        bufpool_complete = 2;
+            g_list_length (self->garray));
+        self->bufpool_complete = 2;
 
-        for (i = 0; i < g_list_length (garray); i++)
-          buffer_list =
-              g_list_append (buffer_list,
-              GPOINTER_TO_INT (g_list_nth_data (garray, i)));
+        for (i = 0; i < g_list_length (self->garray); i++)
+          self->buffer_list =
+              g_list_append (self->buffer_list,
+              GPOINTER_TO_INT (g_list_nth_data (self->garray, i)));
 
         gst_omx_port_update_port_definition (self->enc_in_port, NULL);
         GST_FIXME_OBJECT (self, "OMX Encoder BuffercountActual is %d\n",
             self->enc_in_port->port_def.nBufferCountActual);
-        self->enc_in_port->port_def.nBufferCountActual = g_list_length (garray);
+        self->enc_in_port->port_def.nBufferCountActual = g_list_length (self->garray);
         gst_omx_port_update_port_definition (self->enc_in_port,
             &self->enc_in_port->port_def);
         GST_FIXME_OBJECT (self, "Updated OMX Encoder BuffercountActual is %d\n",
@@ -1833,10 +1827,10 @@ gst_omx_video_enc_handle_frame (GstVideoEncoder * encoder,
       }
 
       if (gst_omx_port_use_buffers (self->enc_in_port,
-              buffer_list) != OMX_ErrorNone)
+              self->buffer_list) != OMX_ErrorNone)
         return FALSE;
 
-      g_list_free (buffer_list);
+      g_list_free (self->buffer_list);
 
       if (gst_omx_component_set_state (self->enc,
               OMX_StateExecuting) != OMX_ErrorNone)
@@ -2160,15 +2154,15 @@ gst_omx_video_enc_sink_event (GstVideoEncoder * encoder, GstEvent * event)
               NULL);
 
           for (i = 0; i < buffers->len; i++) {
-            buffer_list =
-                g_list_append (buffer_list, g_array_index (buffers, gint, i));
-            g_dmalist_count++;
+            self->buffer_list =
+                g_list_append (self->buffer_list, g_array_index (buffers, gint, i));
+            self->g_dmalist_count++;
           }
-          bufpool_complete = 1;
+          self->bufpool_complete = 1;
 	  g_array_unref(buffers);
           GST_FIXME_OBJECT (self,
               "Custom event for DMA list is sucessful, got %d fd \n",
-              g_dmalist_count);
+              self->g_dmalist_count);
         }
       }
       return sink_event_backup (encoder, event);

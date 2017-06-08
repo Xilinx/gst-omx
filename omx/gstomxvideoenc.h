@@ -83,6 +83,12 @@ struct _GstOMXVideoEnc
   guint32 qp_mode;
   guint32 slice;
 
+  GList *buffer_list;
+  gint g_dmalist_count;
+  gint bufpool_complete;
+  gint count;
+  GList *garray;
+
   GstFlowReturn downstream_flow_ret;
 };
 
