@@ -1139,17 +1139,26 @@ gst_omx_video_enc_stop (GstVideoEncoder * encoder)
   return TRUE;
 }
 
-static guint
+static gint
 get_latency_in_frames (GstOMXVideoEnc * self)
 {
-  if (g_getenv ("HACK_ENC_LATENCY")) {
-    guint frames = atoi (g_getenv ("HACK_ENC_LATENCY"));
-    GST_DEBUG_OBJECT (self, "HACK set %d buffers as latency", frames);
-    return frames;
+  OMX_PARAM_LATENCY param;
+  OMX_ERRORTYPE err;
+
+  GST_OMX_INIT_STRUCT (&param);
+  err = gst_omx_component_get_parameter (self->enc, OMX_IndexParamLatency,
+      &param);
+
+  if (err != OMX_ErrorNone) {
+    GST_WARNING_OBJECT (self, "Couldn't retrieve latency: %s (0x%08x)",
+        gst_omx_error_to_string (err), err);
+    return -1;
   }
 
-  /* Processing time takes roughly one frame in common scenarios */
-  return self->enc_in_port->port_def.nBufferCountMin + 1;
+  GST_LOG_OBJECT (self, "retrieved latency of %d buffers",
+      param.nBuffersLatency);
+
+  return param.nBuffersLatency;
 }
 
 static void
@@ -1161,6 +1170,10 @@ gst_omx_video_enc_set_latency (GstOMXVideoEnc * self)
   gint max_delayed_frames;
 
   max_delayed_frames = get_latency_in_frames (self);
+  if (max_delayed_frames == -1) {
+    GST_WARNING_OBJECT (self, "cannot set encoder latency");
+    goto out;
+  }
 
   if (info->fps_n) {
     latency = gst_util_uint64_scale_ceil (GST_SECOND * info->fps_d,
@@ -1179,6 +1192,7 @@ gst_omx_video_enc_set_latency (GstOMXVideoEnc * self)
 
   gst_video_encoder_set_latency (GST_VIDEO_ENCODER (self), latency, latency);
 
+out:
   gst_video_codec_state_unref (state);
 }
 
@@ -2183,14 +2197,20 @@ gst_omx_video_enc_propose_allocation (GstVideoEncoder * encoder,
   GstOMXVideoEnc *self = GST_OMX_VIDEO_ENC (encoder);
   GstVideoCodecState *state = gst_video_codec_state_ref (self->input_state);
   GstVideoInfo *info = &state->info;
-  guint num_buffers;
+  gint num_buffers;
 
   gst_query_add_allocation_meta (query, GST_VIDEO_META_API_TYPE, NULL);
 
   num_buffers = get_latency_in_frames (self) + 1;
+  if (num_buffers == -1) {
+    GST_WARNING_OBJECT (self, "need latency to increase buffer pool");
+    goto out;
+  }
+
   GST_DEBUG_OBJECT (self, "request at least %d buffers", num_buffers);
   gst_query_add_allocation_pool (query, NULL, info->size, num_buffers, 0);
 
+out:
   gst_video_codec_state_unref (state);
 
   return
