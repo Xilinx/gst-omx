@@ -102,6 +102,7 @@ enum
   PROP_IP_MODE,
   PROP_OP_MODE,
   PROP_LATENCY_MODE,
+  PROP_STACK_VALUE,
 #endif
 };
 
@@ -120,7 +121,7 @@ G_DEFINE_ABSTRACT_TYPE_WITH_CODE (GstOMXVideoDec, gst_omx_video_dec,
 #define DEFAULT_PROP_IP_MODE GST_OMX_DEC_IP_DEFAULT
 #define DEFAULT_PROP_OP_MODE GST_OMX_DEC_OP_DEFAULT
 #define DEFAULT_PROP_LATENCY_MODE OMX_AL_DPB_NORMAL
-
+#define DEFAULT_PROP_STACK_VALUE	5
 GType
 gst_omx_dec_ip_mode_get_type (void)
 {
@@ -203,6 +204,14 @@ gst_omx_video_dec_class_init (GstOMXVideoDecClass * klass)
           "Decoder latency mode",
           GST_TYPE_OMX_DEC_LATENCY_MODE,
           DEFAULT_PROP_LATENCY_MODE, G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
+
+  g_object_class_install_property (gobject_class, PROP_STACK_VALUE,
+      g_param_spec_uint ("stack", "Value of stack size",
+          "Set it when decoder fails to get required performance (5=component default)",
+          2, 16, DEFAULT_PROP_STACK_VALUE,
+          G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS |
+          GST_PARAM_MUTABLE_READY));
+
 #endif
 
   element_class->change_state =
@@ -2300,6 +2309,7 @@ gst_omx_video_dec_set_format (GstVideoDecoder * decoder,
   channel_setting.eDecodedPictureBufferMode = self->latency_mode;
   channel_setting.nPortIndex = self->dec_in_port->index;
   channel_setting.nBufferCountHeldByNextComponent = 5;
+  channel_setting.nBufferingCount = self->stack;
   OMX_SetParameter (self->dec->handle, CHANNELtype, &channel_setting);
 #endif
 
@@ -2883,6 +2893,9 @@ gst_omx_video_dec_set_property (GObject * object, guint prop_id,
     case PROP_LATENCY_MODE:
       self->latency_mode = g_value_get_enum (value);
       break;
+    case PROP_STACK_VALUE:
+      self->stack = g_value_get_uint (value);
+      break;
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
       break;
@@ -2903,6 +2916,9 @@ gst_omx_video_dec_get_property (GObject * object, guint prop_id,
       break;
     case PROP_LATENCY_MODE:
       g_value_set_enum (value, self->latency_mode);
+      break;
+    case PROP_STACK_VALUE:
+      g_value_set_uint (value, self->stack);
       break;
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
