@@ -268,8 +268,8 @@ gst_omx_video_enc_class_init (GstOMXVideoEncClass * klass)
   
  g_object_class_install_property (gobject_class, PROP_SLICE,
       g_param_spec_uint ("slice", "Number of slices",
-          "Specify the number of slice in one encoded frames (1=component default)",
-          1, 128, GST_OMX_VIDEO_ENC_SLICE_DEFAULT,
+          "Number of slice in each frame,For HEVC max slices depend on resolution & level,here max possible value is 22(1=component default)",
+          1, 135, GST_OMX_VIDEO_ENC_SLICE_DEFAULT,
           G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS |
           GST_PARAM_MUTABLE_READY));
 
