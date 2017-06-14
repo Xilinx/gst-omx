@@ -102,7 +102,7 @@ enum
   PROP_IP_MODE,
   PROP_OP_MODE,
   PROP_LATENCY_MODE,
-  PROP_STACK_VALUE,
+  PROP_BUFFERING_VALUE,
 #endif
 };
 
@@ -121,7 +121,7 @@ G_DEFINE_ABSTRACT_TYPE_WITH_CODE (GstOMXVideoDec, gst_omx_video_dec,
 #define DEFAULT_PROP_IP_MODE GST_OMX_DEC_IP_DEFAULT
 #define DEFAULT_PROP_OP_MODE GST_OMX_DEC_OP_DEFAULT
 #define DEFAULT_PROP_LATENCY_MODE OMX_AL_DPB_NORMAL
-#define DEFAULT_PROP_STACK_VALUE	5
+#define DEFAULT_PROP_BUFFERING_VALUE	5
 GType
 gst_omx_dec_ip_mode_get_type (void)
 {
@@ -205,10 +205,10 @@ gst_omx_video_dec_class_init (GstOMXVideoDecClass * klass)
           GST_TYPE_OMX_DEC_LATENCY_MODE,
           DEFAULT_PROP_LATENCY_MODE, G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
 
-  g_object_class_install_property (gobject_class, PROP_STACK_VALUE,
-      g_param_spec_uint ("stack", "Value of stack size",
+  g_object_class_install_property (gobject_class, PROP_BUFFERING_VALUE,
+      g_param_spec_uint ("buffering-count", "Number of processing buffers to be used by decoder",
           "Set it when decoder fails to get required performance (5=component default)",
-          2, 16, DEFAULT_PROP_STACK_VALUE,
+          2, 16, DEFAULT_PROP_BUFFERING_VALUE,
           G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS |
           GST_PARAM_MUTABLE_READY));
 
@@ -2273,6 +2273,27 @@ gst_omx_video_dec_set_format (GstVideoDecoder * decoder,
             GST_CLOCK_TIME_NONE) != OMX_StateIdle)
       return FALSE;
 
+#ifdef USE_OMX_TARGET_ZYNQ_USCALE_PLUS
+  GST_DEBUG_OBJECT (self, "latency mode: %d", self->latency_mode);
+
+  OMX_INDEXTYPE  CHANNELtype;
+  OMX_VIDEO_PARAM_DECODER_CHANNEL channel_setting;
+
+  OMX_GetExtensionIndex (self->dec->handle,
+      (OMX_STRING) "OMX.allegro.decoder.channel", &CHANNELtype);
+  GST_OMX_INIT_STRUCT (&channel_setting);
+  channel_setting.nSize = sizeof (channel_setting);
+  channel_setting.nVersion.s.nVersionMajor = OMX_VERSION_MAJOR;
+  channel_setting.nVersion.s.nVersionMinor = OMX_VERSION_MINOR;
+  channel_setting.nVersion.s.nRevision = OMX_VERSION_REVISION;
+  channel_setting.nVersion.s.nStep = OMX_VERSION_STEP;
+  channel_setting.eDecodedPictureBufferMode = self->latency_mode;
+  channel_setting.nPortIndex = self->dec_in_port->index;
+  channel_setting.nBufferCountHeldByNextComponent = 5;
+  channel_setting.nBufferingCount = self->buffering_count;
+  OMX_SetParameter (self->dec->handle, CHANNELtype, &channel_setting);
+#endif
+
     if (gst_omx_component_set_state (self->dec,
             OMX_StateExecuting) != OMX_ErrorNone)
       return FALSE;
@@ -2292,26 +2313,6 @@ gst_omx_video_dec_set_format (GstVideoDecoder * decoder,
         gst_omx_component_get_last_error (self->dec));
     return FALSE;
   }
-#ifdef USE_OMX_TARGET_ZYNQ_USCALE_PLUS
-  GST_DEBUG_OBJECT (self, "latency mode: %d", self->latency_mode);
-
-  OMX_INDEXTYPE  CHANNELtype;
-  OMX_VIDEO_PARAM_DECODER_CHANNEL channel_setting;
-
-  OMX_GetExtensionIndex (self->dec->handle,
-      (OMX_STRING) "OMX.allegro.decoder.channel", &CHANNELtype);
-  GST_OMX_INIT_STRUCT (&channel_setting);
-  channel_setting.nSize = sizeof (channel_setting);
-  channel_setting.nVersion.s.nVersionMajor = OMX_VERSION_MAJOR;
-  channel_setting.nVersion.s.nVersionMinor = OMX_VERSION_MINOR;
-  channel_setting.nVersion.s.nRevision = OMX_VERSION_REVISION;
-  channel_setting.nVersion.s.nStep = OMX_VERSION_STEP;
-  channel_setting.eDecodedPictureBufferMode = self->latency_mode;
-  channel_setting.nPortIndex = self->dec_in_port->index;
-  channel_setting.nBufferCountHeldByNextComponent = 5;
-  channel_setting.nBufferingCount = self->stack;
-  OMX_SetParameter (self->dec->handle, CHANNELtype, &channel_setting);
-#endif
 
   gst_omx_video_dec_set_latency (self);
 
@@ -2893,8 +2894,8 @@ gst_omx_video_dec_set_property (GObject * object, guint prop_id,
     case PROP_LATENCY_MODE:
       self->latency_mode = g_value_get_enum (value);
       break;
-    case PROP_STACK_VALUE:
-      self->stack = g_value_get_uint (value);
+    case PROP_BUFFERING_VALUE:
+      self->buffering_count = g_value_get_uint (value);
       break;
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
@@ -2917,8 +2918,8 @@ gst_omx_video_dec_get_property (GObject * object, guint prop_id,
     case PROP_LATENCY_MODE:
       g_value_set_enum (value, self->latency_mode);
       break;
-    case PROP_STACK_VALUE:
-      g_value_set_uint (value, self->stack);
+    case PROP_BUFFERING_VALUE:
+      g_value_set_uint (value, self->buffering_count);
       break;
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
