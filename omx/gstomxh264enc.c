@@ -98,6 +98,10 @@ gst_omx_h264_enc_open (GstVideoEncoder * encoder)
   err = gst_omx_component_get_parameter (omx_enc->enc,
       OMX_IndexParamVideoAvc, &avc_param);
 
+  /* As per some historical reasons, GopLength=0 should be treated as GopLength=1 only*/
+  if(!self->gop_length)
+	self->gop_length = 1;
+
   /* We will set OMX il's nPframes & nBframes parameter as below calculation
      based on user's input of GopLength & NumBframes
      nPframes(Number of P frames between each I frame) = GopLength/(NumBframes+1) - 1
@@ -110,6 +114,7 @@ gst_omx_h264_enc_open (GstVideoEncoder * encoder)
                 self->b_frames = 0;
         } else {
                 GST_ERROR_OBJECT (self, "GopLength should be in multiple of (b-frames + 1).Now setting it to default value");
+		g_warning("GopLength should be in multiple of (b-frames + 1).Now setting it to default value");
                 self->gop_length = GST_OMX_H264_ENC_GOP_LENGTH_DEFAULT;
                 self->b_frames = GST_OMX_H264_ENC_B_FRAMES_DEFAULT;
         }
@@ -199,7 +204,7 @@ gst_omx_h264_enc_class_init (GstOMXH264EncClass * klass)
   g_object_class_install_property (gobject_class, PROP_GOP_LENGTH,
       g_param_spec_uint ("Gop-Length", "Number of all frames in 1 GOP, Must be in multiple of (b-frames+1)",
           "Distance between two consecutive I frames(30=component default)",
-          1, 1000, GST_OMX_H264_ENC_GOP_LENGTH_DEFAULT,
+          0, 1000, GST_OMX_H264_ENC_GOP_LENGTH_DEFAULT,
           G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS |
           GST_PARAM_MUTABLE_READY));
 
