@@ -483,6 +483,9 @@ gst_omx_h264_enc_set_format (GstOMXVideoEnc * enc, GstOMXPort * port,
     return FALSE;
   }
 
+  if( (param.eProfile == OMX_VIDEO_AVCProfileBaseline) && self->b_frames )
+	g_warning("B frames are not supported in AVC baseline profile,Going with b-frames=0 \n");
+
   return TRUE;
 
 unsupported_profile:
