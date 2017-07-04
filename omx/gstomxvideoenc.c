@@ -1588,8 +1588,8 @@ gst_omx_video_enc_fill_buffer (GstOMXVideoEnc * self, GstBuffer * inbuf,
     goto done;
   } else {
     /* Different strides */
-
     if (self->input_mode == OMX_Enc_InputMode_DMABufImport) {
+      outbuf->omx_buf->nFilledLen = gst_buffer_get_size (inbuf);
       GST_FIXME_OBJECT (self,
           "Stride does not matches,Decoder o/p FD is %d, Encoder I/P FD is %d\n",
           gst_dmabuf_memory_get_fd (gst_buffer_peek_memory (inbuf, 0)),
