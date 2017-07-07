@@ -164,6 +164,7 @@ enum
 #define GST_OMX_VIDEO_ENC_QUANT_B_FRAMES_DEFAULT (0xffffffff)
 #define GST_OMX_VIDEO_ENC_INPUT_MODE_DEFAULT (0xffffffff)
 #define GST_OMX_VIDEO_ENC_L2CACHE_DEFAULT (0)
+#define GST_OMX_VIDEO_ENC_L2CACHE_MAXSIZE (4096)
 #define GST_OMX_VIDEO_ENC_STRIDE_DEFAULT (1)
 #define GST_OMX_VIDEO_ENC_SLICEHEIGHT_DEFAULT (1)
 #define GST_OMX_VIDEO_ENC_QP_MODE_DEFAULT GST_OMX_ENC_UNIFORM_QP 
@@ -247,7 +248,7 @@ gst_omx_video_enc_class_init (GstOMXVideoEncClass * klass)
   g_object_class_install_property (gobject_class, PROP_L2CACHE,
       g_param_spec_uint ("enc-buffer-size", "Value of L2Cache buffer size",
           "Value of encoder L2Cache buffer size in KB (0x0=component default)",
-          0, G_MAXUINT, GST_OMX_VIDEO_ENC_L2CACHE_DEFAULT,
+          0, GST_OMX_VIDEO_ENC_L2CACHE_MAXSIZE, GST_OMX_VIDEO_ENC_L2CACHE_DEFAULT,
           G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS |
           GST_PARAM_MUTABLE_READY));
 
@@ -395,7 +396,7 @@ gst_omx_video_enc_open (GstVideoEncoder * encoder)
 	(OMX_STRING) "OMX.allegro.encoder.channel", &CHANNELtype);
   GST_OMX_INIT_STRUCT (&channel_setting);
   if(self->l2cache) {
-	channel_setting.nL2CacheSize = (OMX_U32) self->l2cache;
+	channel_setting.nL2CacheSize = (OMX_U32) self->l2cache * 1000;
   }
   if (self->enc_out_port) {
 	if(self->qp_mode == GST_OMX_ENC_UNIFORM_QP)
