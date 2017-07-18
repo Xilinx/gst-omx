@@ -2351,15 +2351,8 @@ gst_omx_video_dec_flush (GstVideoDecoder * decoder)
   if (gst_omx_component_get_state (self->dec, 0) == OMX_StateLoaded)
     return TRUE;
 
-  /* 0) Wait until the srcpad loop is stopped,
-   * unlock GST_VIDEO_DECODER_STREAM_LOCK to prevent deadlocks
-   * caused by using this lock from inside the loop function */
-  GST_VIDEO_DECODER_STREAM_UNLOCK (self);
-  gst_pad_stop_task (GST_VIDEO_DECODER_SRC_PAD (decoder));
-  GST_DEBUG_OBJECT (self, "Flushing -- task stopped");
-  GST_VIDEO_DECODER_STREAM_LOCK (self);
 
-  /* 1) Pause the components */
+  /* 0) Pause the components */
   if (gst_omx_component_get_state (self->dec, 0) == OMX_StateExecuting) {
     gst_omx_component_set_state (self->dec, OMX_StatePause);
     gst_omx_component_get_state (self->dec, GST_CLOCK_TIME_NONE);
@@ -2373,7 +2366,7 @@ gst_omx_video_dec_flush (GstVideoDecoder * decoder)
   }
 #endif
 
-  /* 2) Flush the ports */
+  /* 1) Flush the ports */
   GST_DEBUG_OBJECT (self, "flushing ports");
   gst_omx_port_set_flushing (self->dec_in_port, 5 * GST_SECOND, TRUE);
   gst_omx_port_set_flushing (self->dec_out_port, 5 * GST_SECOND, TRUE);
@@ -2384,6 +2377,15 @@ gst_omx_video_dec_flush (GstVideoDecoder * decoder)
     gst_omx_port_set_flushing (self->egl_out_port, 5 * GST_SECOND, TRUE);
   }
 #endif
+
+  /* 2) Wait until the srcpad loop is stopped,
+   * unlock GST_VIDEO_DECODER_STREAM_LOCK to prevent deadlocks
+   * caused by using this lock from inside the loop function */
+  GST_VIDEO_DECODER_STREAM_UNLOCK (self);
+  gst_pad_stop_task (GST_VIDEO_DECODER_SRC_PAD (decoder));
+  GST_DEBUG_OBJECT (self, "Flushing -- task stopped");
+  GST_VIDEO_DECODER_STREAM_LOCK (self);
+
 
   /* 3) Resume components */
   gst_omx_component_set_state (self->dec, OMX_StateExecuting);
