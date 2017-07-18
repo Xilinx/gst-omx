@@ -324,9 +324,7 @@ gst_omx_video_enc_open (GstVideoEncoder * encoder)
   gint in_port_index, out_port_index;
 
 #ifdef USE_OMX_TARGET_ZYNQ_USCALE_PLUS
-  OMX_INDEXTYPE DMAtype, CHANNELtype;
-  OMX_PORT_PARAM_BUFFERMODE enable_dmabuf;
-  OMX_VIDEO_PARAM_ENCODER_CHANNEL channel_setting;
+  OMX_ALG_PORT_PARAM_BUFFER_MODE enable_dmabuf;
   OMX_ERRORTYPE err;
 
   static int use_dmabuf = 0;
@@ -381,46 +379,22 @@ gst_omx_video_enc_open (GstVideoEncoder * encoder)
 #ifdef USE_OMX_TARGET_ZYNQ_USCALE_PLUS
   GST_INFO_OBJECT (self, "Custom settings needed for zynq VCU");
 
-  OMX_GetExtensionIndex (self->enc->handle,
-      (OMX_STRING) "OMX.allegro.bufferMode", &DMAtype);
-
   GST_OMX_INIT_STRUCT (&enable_dmabuf);
   if(use_dmabuf)
-  	enable_dmabuf.eMode = OMX_BUF_DMA;
+  	enable_dmabuf.eMode = OMX_ALG_BUF_DMA;
   else
-  	enable_dmabuf.eMode = OMX_BUF_NORMAL;
+  	enable_dmabuf.eMode = OMX_ALG_BUF_NORMAL;
   enable_dmabuf.nPortIndex = self->enc_in_port->index;
-  OMX_SetParameter (self->enc->handle, DMAtype, &enable_dmabuf);
+  OMX_SetParameter (self->enc->handle, OMX_ALG_IndexPortParamBufferMode, &enable_dmabuf);
 
-  OMX_GetExtensionIndex (self->enc->handle,
-	(OMX_STRING) "OMX.allegro.encoder.channel", &CHANNELtype);
-  GST_OMX_INIT_STRUCT (&channel_setting);
-  if(self->l2cache) {
-	channel_setting.nL2CacheSize = (OMX_U32) self->l2cache * 1000;
-  }
-  if (self->enc_out_port) {
-	if(self->qp_mode == GST_OMX_ENC_UNIFORM_QP)
-  		channel_setting.eQpControlMode = OMX_UNIFORM_QP;
-	else if(self->qp_mode == GST_OMX_ENC_AUTO_QP)
-  		channel_setting.eQpControlMode = OMX_AUTO_QP;
-	channel_setting.nPortIndex = self->enc_out_port->index;
-  }
-  if(self->slice) {
-  	channel_setting.nNumSlices = self->slice;
-  } else {
-  	channel_setting.nNumSlices = 1;
-  }
-  err =
-      gst_omx_component_set_parameter (self->enc,
-      CHANNELtype, &channel_setting);
-  if (err != OMX_ErrorNone) {
-    GST_ERROR_OBJECT (self,
-        "Failed to channel setting parameters: %s (0x%08x)",
-        gst_omx_error_to_string (err), err);
-    return FALSE;
-  } else {
-    GST_DEBUG_OBJECT (self, "encoded channel settings are updated");
-  }
+  OMX_ALG_VIDEO_PARAM_QUANTIZATION_CONTROL qp_setting; 
+  GST_OMX_INIT_STRUCT (&qp_setting);
+  if(self->qp_mode == GST_OMX_ENC_UNIFORM_QP)
+  	qp_setting.eQpControlMode = OMX_ALG_UNIFORM_QP;
+  else if(self->qp_mode == GST_OMX_ENC_AUTO_QP)
+  	qp_setting.eQpControlMode = OMX_ALG_AUTO_QP;
+  qp_setting.nPortIndex = self->enc_in_port->index;
+  OMX_SetParameter (self->enc->handle, OMX_ALG_IndexParamVideoQuantizationControl, &qp_setting);
 #endif
 
   if (!self->enc_in_port || !self->enc_out_port)
@@ -1143,11 +1117,11 @@ gst_omx_video_enc_stop (GstVideoEncoder * encoder)
 static gint
 get_latency_in_frames (GstOMXVideoEnc * self)
 {
-  OMX_PARAM_LATENCY param;
+  OMX_ALG_PARAM_REPORTED_LATENCY param;
   OMX_ERRORTYPE err;
 
   GST_OMX_INIT_STRUCT (&param);
-  err = gst_omx_component_get_parameter (self->enc, OMX_IndexParamLatency,
+  err = gst_omx_component_get_parameter (self->enc, OMX_ALG_IndexParamReportedLatency,
       &param);
 
   if (err != OMX_ErrorNone) {

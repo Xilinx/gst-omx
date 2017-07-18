@@ -106,7 +106,7 @@ GType gst_omx_dec_op_mode_get_type (void);
 #ifdef USE_OMX_TARGET_ZYNQ_USCALE_PLUS
        GstOMXDecIpMode ip_mode;
        GstOMXDecOpMode op_mode;
-       OMX_AL_EDpbMode latency_mode;
+       OMX_ALG_EDpbMode latency_mode;
        guint32 buffering_count;
 #endif
      };

@@ -120,7 +120,7 @@ G_DEFINE_ABSTRACT_TYPE_WITH_CODE (GstOMXVideoDec, gst_omx_video_dec,
 
 #define DEFAULT_PROP_IP_MODE GST_OMX_DEC_IP_DEFAULT
 #define DEFAULT_PROP_OP_MODE GST_OMX_DEC_OP_DEFAULT
-#define DEFAULT_PROP_LATENCY_MODE OMX_AL_DPB_NORMAL
+#define DEFAULT_PROP_LATENCY_MODE OMX_ALG_DPB_NORMAL
 #define DEFAULT_PROP_BUFFERING_VALUE	5
 GType
 gst_omx_dec_ip_mode_get_type (void)
@@ -162,8 +162,8 @@ gst_omx_dec_latency_mode_get_type (void)
 
   if (!omx_dec_latency_mode) {
     static const GEnumValue latency_modes[] = {
-      {OMX_AL_DPB_NORMAL, "Default Normal Mode", "normal"},
-      {OMX_AL_DPB_LOW_REF, "low latency mode", "lowlatency"},
+      {OMX_ALG_DPB_NORMAL, "Default Normal Mode", "normal"},
+      {OMX_ALG_DPB_LOW_REF, "low latency mode", "lowlatency"},
       {0, NULL, NULL}
     };
     omx_dec_latency_mode = g_enum_register_static ("GstOMXDecLatencyMode", latency_modes);
@@ -258,12 +258,6 @@ gst_omx_video_dec_open (GstVideoDecoder * decoder)
   GstOMXVideoDecClass *klass = GST_OMX_VIDEO_DEC_GET_CLASS (self);
   gint in_port_index, out_port_index;
 
-#ifdef USE_OMX_TARGET_ZYNQ_USCALE_PLUS
-  OMX_INDEXTYPE DMAType;
-  OMX_PORT_PARAM_BUFFERMODE dmaBuffer;
-  OMX_BUFFERMODE bufferMode = OMX_BUF_DMA;
-#endif
-
   GST_DEBUG_OBJECT (self, "Opening decoder");
 
   self->dec =
@@ -307,13 +301,14 @@ gst_omx_video_dec_open (GstVideoDecoder * decoder)
   self->dec_in_port = gst_omx_component_add_port (self->dec, in_port_index);
   self->dec_out_port = gst_omx_component_add_port (self->dec, out_port_index);
 
+
 #ifdef USE_OMX_TARGET_ZYNQ_USCALE_PLUS
   GST_INFO_OBJECT (self, "Custom settings needed for zynq VCU");
 
   if (self->op_mode == GST_OMX_DEC_OP_DMA_EXPORT) {
       OMX_INDEXTYPE DMAType;
-      OMX_PORT_PARAM_BUFFERMODE dmaBuffer;
-      OMX_BUFFERMODE bufferMode = OMX_BUF_DMA;
+      OMX_ALG_PORT_PARAM_BUFFER_MODE dmaBuffer;
+      OMX_ALG_BUFFER_MODE bufferMode = OMX_ALG_BUF_DMA;
 
       OMX_GetExtensionIndex (self->dec->handle,
           (OMX_STRING) "OMX.allegro.bufferMode", &DMAType);
@@ -325,7 +320,6 @@ gst_omx_video_dec_open (GstVideoDecoder * decoder)
       OMX_SetParameter (self->dec->handle, DMAType, &dmaBuffer);
  }
 #endif
-
 
   if (!self->dec_in_port || !self->dec_out_port)
     return FALSE;
@@ -1966,11 +1960,11 @@ gst_omx_video_dec_negotiate (GstOMXVideoDec * self)
 static guint
 get_latency_in_frames (GstOMXVideoDec * self)
 {
-  OMX_PARAM_LATENCY param;
+  OMX_ALG_PARAM_REPORTED_LATENCY param;
   OMX_ERRORTYPE err;
 
   GST_OMX_INIT_STRUCT (&param);
-  err = gst_omx_component_get_parameter (self->dec, OMX_IndexParamLatency,
+  err = gst_omx_component_get_parameter (self->dec, OMX_ALG_IndexParamReportedLatency,
       &param);
 
   if (err != OMX_ErrorNone) {
@@ -2019,6 +2013,8 @@ gst_omx_video_dec_set_latency (GstOMXVideoDec * self)
 out:
   gst_video_codec_state_unref (state);
 }
+
+
 
 static gboolean
 gst_omx_video_dec_set_format (GstVideoDecoder * decoder,
@@ -2288,24 +2284,27 @@ gst_omx_video_dec_set_format (GstVideoDecoder * decoder,
       return FALSE;
 
 #ifdef USE_OMX_TARGET_ZYNQ_USCALE_PLUS
-  GST_DEBUG_OBJECT (self, "latency mode: %d", self->latency_mode);
+  OMX_ALG_VIDEO_PARAM_INTERNAL_ENTROPY_BUFFERS entropy_buffers;
+  GST_OMX_INIT_STRUCT (&entropy_buffers);
+  entropy_buffers.nSize = sizeof (entropy_buffers);
+  entropy_buffers.nVersion.s.nVersionMajor = OMX_VERSION_MAJOR;
+  entropy_buffers.nVersion.s.nVersionMinor = OMX_VERSION_MINOR;
+  entropy_buffers.nVersion.s.nRevision = OMX_VERSION_REVISION;
+  entropy_buffers.nVersion.s.nStep = OMX_VERSION_STEP;
+  entropy_buffers.nPortIndex = self->dec_in_port->index;
+  entropy_buffers.nNumInternalEntropyBuffers = self->buffering_count;
+  OMX_SetParameter (self->dec->handle, OMX_ALG_IndexParamVideoInternalEntropyBuffers, &entropy_buffers);
 
-  OMX_INDEXTYPE  CHANNELtype;
-  OMX_VIDEO_PARAM_DECODER_CHANNEL channel_setting;
-
-  OMX_GetExtensionIndex (self->dec->handle,
-      (OMX_STRING) "OMX.allegro.decoder.channel", &CHANNELtype);
-  GST_OMX_INIT_STRUCT (&channel_setting);
-  channel_setting.nSize = sizeof (channel_setting);
-  channel_setting.nVersion.s.nVersionMajor = OMX_VERSION_MAJOR;
-  channel_setting.nVersion.s.nVersionMinor = OMX_VERSION_MINOR;
-  channel_setting.nVersion.s.nRevision = OMX_VERSION_REVISION;
-  channel_setting.nVersion.s.nStep = OMX_VERSION_STEP;
-  channel_setting.eDecodedPictureBufferMode = self->latency_mode;
-  channel_setting.nPortIndex = self->dec_in_port->index;
-  channel_setting.nBufferCountHeldByNextComponent = 5;
-  channel_setting.nBufferingCount = self->buffering_count;
-  OMX_SetParameter (self->dec->handle, CHANNELtype, &channel_setting);
+  OMX_ALG_VIDEO_PARAM_DECODED_PICTURE_BUFFER dpb_setting;
+  GST_OMX_INIT_STRUCT (&dpb_setting);
+  dpb_setting.nSize = sizeof (dpb_setting);
+  dpb_setting.nVersion.s.nVersionMajor = OMX_VERSION_MAJOR;
+  dpb_setting.nVersion.s.nVersionMinor = OMX_VERSION_MINOR;
+  dpb_setting.nVersion.s.nRevision = OMX_VERSION_REVISION;
+  dpb_setting.nVersion.s.nStep = OMX_VERSION_STEP;
+  dpb_setting.nPortIndex = self->dec_in_port->index;
+  dpb_setting.eDecodedPictureBufferMode = self->latency_mode;
+  OMX_SetParameter (self->dec->handle, OMX_ALG_IndexParamVideoDecodedPictureBuffer, &dpb_setting);
 #endif
 
     if (gst_omx_component_set_state (self->dec,

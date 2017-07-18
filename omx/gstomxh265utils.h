@@ -24,8 +24,8 @@
 
 G_BEGIN_DECLS
 
-OMX_VIDEO_HEVCPROFILETYPE gst_omx_h265_utils_get_profile_from_str (const gchar * profile);
-OMX_VIDEO_HEVCLEVELTYPE gst_omx_h265_utils_get_level_from_str (const gchar * tier, const gchar * level);
+OMX_ALG_VIDEO_HEVCPROFILETYPE gst_omx_h265_utils_get_profile_from_str (const gchar * profile);
+OMX_ALG_VIDEO_HEVCLEVELTYPE gst_omx_h265_utils_get_level_from_str (const gchar * tier, const gchar * level);
 
 G_END_DECLS
 #endif /* __GST_OMX_H265_UTILS_H__ */

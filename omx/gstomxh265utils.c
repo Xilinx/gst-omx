@@ -23,57 +23,58 @@
 
 #include "gstomxh265utils.h"
 
-OMX_VIDEO_HEVCPROFILETYPE
+OMX_ALG_VIDEO_HEVCPROFILETYPE
 gst_omx_h265_utils_get_profile_from_str (const gchar * profile)
 {
   if (g_str_equal (profile, "main")) {
-    return OMX_VIDEO_HEVCProfileMain;
+    return OMX_ALG_VIDEO_HEVCProfileMain;
   } else if (g_str_equal (profile, "main-10")) {
-    return OMX_VIDEO_HEVCProfileMain10;
+    return OMX_ALG_VIDEO_HEVCProfileMain10;
 #if !USE_OMX_TARGET_ZYNQ_USCALE_PLUS
  } else if (g_str_equal (profile_string, "main-still-picture")) {
-   param.eProfile = OMX_VIDEO_HEVCProfileMainStillPicture;
+   param.eProfile = OMX_ALG_VIDEO_HEVCProfileMainStillPicture;
 #else
   } else if (g_str_equal (profile, "mainstill")) {
-    return OMX_VIDEO_HEVCProfileMainStill;
+    return OMX_ALG_VIDEO_HEVCProfileMainStill;
   } else if (g_str_equal (profile, "main422")) {
-    return OMX_VIDEO_HEVCProfileMain422;
+    return OMX_ALG_VIDEO_HEVCProfileMain422;
 #endif
   }
-  return OMX_VIDEO_HEVCProfileMax;
+  return OMX_ALG_VIDEO_HEVCProfileMax;
 }
 
-OMX_VIDEO_HEVCLEVELTYPE
+OMX_ALG_VIDEO_HEVCLEVELTYPE
 gst_omx_h265_utils_get_level_from_str (const gchar * tier, const gchar * level)
 {
   if (g_str_equal (tier, "main")) {
     if (g_str_equal (level, "1"))
-      return OMX_VIDEO_HEVCMainTierLevel1;
+      return OMX_ALG_VIDEO_HEVCMainTierLevel1;
     else if (g_str_equal (level, "2"))
-      return OMX_VIDEO_HEVCMainTierLevel2;
+      return OMX_ALG_VIDEO_HEVCMainTierLevel2;
     else if (g_str_equal (level, "2.1"))
-      return OMX_VIDEO_HEVCMainTierLevel21;
+      return OMX_ALG_VIDEO_HEVCMainTierLevel21;
     else if (g_str_equal (level, "3"))
-      return OMX_VIDEO_HEVCMainTierLevel3;
+      return OMX_ALG_VIDEO_HEVCMainTierLevel3;
     else if (g_str_equal (level, "3.1"))
-      return OMX_VIDEO_HEVCMainTierLevel31;
+      return OMX_ALG_VIDEO_HEVCMainTierLevel31;
     else if (g_str_equal (level, "4"))
-      return OMX_VIDEO_HEVCMainTierLevel4;
+      return OMX_ALG_VIDEO_HEVCMainTierLevel4;
     else if (g_str_equal (level, "4.1"))
-      return OMX_VIDEO_HEVCMainTierLevel41;
+      return OMX_ALG_VIDEO_HEVCMainTierLevel41;
     else if (g_str_equal (level, "5"))
-      return OMX_VIDEO_HEVCMainTierLevel5;
+      return OMX_ALG_VIDEO_HEVCMainTierLevel5;
     else if (g_str_equal (level, "5.1"))
-      return OMX_VIDEO_HEVCMainTierLevel51;
+      return OMX_ALG_VIDEO_HEVCMainTierLevel51;
     else if (g_str_equal (level, "5.2"))
-      return OMX_VIDEO_HEVCMainTierLevel52;
+      return OMX_ALG_VIDEO_HEVCMainTierLevel52;
     else if (g_str_equal (level, "6"))
-      return OMX_VIDEO_HEVCMainTierLevel6;
+      return OMX_ALG_VIDEO_HEVCMainTierLevel6;
     else if (g_str_equal (level, "6.1"))
-      return OMX_VIDEO_HEVCMainTierLevel61;
+      return OMX_ALG_VIDEO_HEVCMainTierLevel61;
     else if (g_str_equal (level, "6.2"))
-      return OMX_VIDEO_HEVCMainTierLevel62;
+      return OMX_ALG_VIDEO_HEVCMainTierLevel62;
   } else if (g_str_equal (tier, "high")) {
+#if 0
     if (g_str_equal (level, "1"))
       return OMX_VIDEO_HEVCHighTierLevel1;
     else if (g_str_equal (level, "2"))
@@ -84,23 +85,25 @@ gst_omx_h265_utils_get_level_from_str (const gchar * tier, const gchar * level)
       return OMX_VIDEO_HEVCHighTierLevel3;
     else if (g_str_equal (level, "3.1"))
       return OMX_VIDEO_HEVCHighTierLevel31;
-    else if (g_str_equal (level, "4"))
-      return OMX_VIDEO_HEVCHighTierLevel4;
+#endif
+//    else if (g_str_equal (level, "4"))
+   if (g_str_equal (level, "4"))
+      return OMX_ALG_VIDEO_HEVCHighTierLevel4;
     else if (g_str_equal (level, "4.1"))
-      return OMX_VIDEO_HEVCHighTierLevel41;
+      return OMX_ALG_VIDEO_HEVCHighTierLevel41;
     else if (g_str_equal (level, "5"))
-      return OMX_VIDEO_HEVCHighTierLevel5;
+      return OMX_ALG_VIDEO_HEVCHighTierLevel5;
     else if (g_str_equal (level, "5.1"))
-      return OMX_VIDEO_HEVCHighTierLevel51;
+      return OMX_ALG_VIDEO_HEVCHighTierLevel51;
     else if (g_str_equal (level, "5.2"))
-      return OMX_VIDEO_HEVCHighTierLevel52;
+      return OMX_ALG_VIDEO_HEVCHighTierLevel52;
     else if (g_str_equal (level, "6"))
-      return OMX_VIDEO_HEVCHighTierLevel6;
+      return OMX_ALG_VIDEO_HEVCHighTierLevel6;
     else if (g_str_equal (level, "6.1"))
-      return OMX_VIDEO_HEVCHighTierLevel61;
+      return OMX_ALG_VIDEO_HEVCHighTierLevel61;
     else if (g_str_equal (level, "6.2"))
-      return OMX_VIDEO_HEVCHighTierLevel62;
+      return OMX_ALG_VIDEO_HEVCHighTierLevel62;
   }
 
-  return OMX_VIDEO_HEVCHighTierMax;
+  return OMX_ALG_VIDEO_HEVCLevelMax;
 }

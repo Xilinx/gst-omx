@@ -105,7 +105,7 @@ gst_omx_h265_enc_open (GstVideoEncoder * encoder)
   GstOMXVideoEnc *omx_enc = GST_OMX_VIDEO_ENC (encoder);
   guint32 p_frames;
   guint32 b_frames;
-  OMX_VIDEO_PARAM_HEVCTYPE hevc_param;
+  OMX_ALG_VIDEO_PARAM_HEVCTYPE hevc_param;
   OMX_ERRORTYPE err;
 
   if (!GST_VIDEO_ENCODER_CLASS (parent_class)->open (encoder))
@@ -115,7 +115,7 @@ gst_omx_h265_enc_open (GstVideoEncoder * encoder)
   hevc_param.nPortIndex = omx_enc->enc_out_port->index;
 
   err = gst_omx_component_get_parameter (omx_enc->enc,
-      OMX_IndexParamVideoHevc, &hevc_param);
+      OMX_ALG_IndexParamVideoHevc, &hevc_param);
 
   /* As per some historical reasons, GopLength=0 should be treated as GopLength=1 only*/
   if(!self->gop_length)
@@ -156,7 +156,7 @@ gst_omx_h265_enc_open (GstVideoEncoder * encoder)
     }
     err =
         gst_omx_component_set_parameter (omx_enc->enc,
-        OMX_IndexParamVideoHevc, &hevc_param);
+        OMX_ALG_IndexParamVideoHevc, &hevc_param);
     if (err == OMX_ErrorUnsupportedIndex) {
       GST_WARNING_OBJECT (self,
           "Setting HEVC parameters not supported by the component");
@@ -283,7 +283,7 @@ gst_omx_h265_enc_set_format (GstOMXVideoEnc * enc, GstOMXPort * port,
       if (profile_string) {
         param.eProfile =
             gst_omx_h265_utils_get_profile_from_str (profile_string);
-        if (param.eProfile == OMX_VIDEO_HEVCProfileMax)
+        if (param.eProfile == OMX_ALG_VIDEO_HEVCProfileMax)
           goto unsupported_profile;
       }
 
@@ -291,7 +291,7 @@ gst_omx_h265_enc_set_format (GstOMXVideoEnc * enc, GstOMXPort * port,
       level_string = gst_structure_get_string (s, "level");
       if (tier_string && level_string) {
         param.eLevel = gst_omx_h265_utils_get_level_from_str (tier_string, level_string);
-        if (param.eLevel == OMX_VIDEO_HEVCHighTierMax)
+        if (param.eLevel == OMX_ALG_VIDEO_HEVCLevelMax)
           goto unsupported_level;
       }
 
@@ -364,21 +364,21 @@ gst_omx_h265_enc_get_caps (GstOMXVideoEnc * enc, GstOMXPort * port,
 
   if (err == OMX_ErrorNone) {
     switch (param.eProfile) {
-      case OMX_VIDEO_HEVCProfileMain:
+      case OMX_ALG_VIDEO_HEVCProfileMain:
         profile = "main";
         break;
-      case OMX_VIDEO_HEVCProfileMain10:
+      case OMX_ALG_VIDEO_HEVCProfileMain10:
         profile = "main-10";
         break;
 #if !USE_OMX_TARGET_ZYNQ_USCALE_PLUS
-      case OMX_VIDEO_HEVCProfileMainStillPicture:
+      case OMX_ALG_VIDEO_HEVCProfileMainStillPicture:
         profile = "main-still-picture";
         break;
 #else
-      case OMX_VIDEO_HEVCProfileMainStill:
+      case OMX_ALG_VIDEO_HEVCProfileMainStill:
         profile = "mainstill";
         break;
-      case OMX_VIDEO_HEVCProfileMain422:
+      case OMX_ALG_VIDEO_HEVCProfileMain422:
         profile = "main422";
         break;
 #endif
@@ -388,58 +388,59 @@ gst_omx_h265_enc_get_caps (GstOMXVideoEnc * enc, GstOMXPort * port,
     }
 
     switch (param.eLevel) {
-      case OMX_VIDEO_HEVCMainTierLevel1:
+      case OMX_ALG_VIDEO_HEVCMainTierLevel1:
         tier = "main";
         level = "1";
         break;
-      case OMX_VIDEO_HEVCMainTierLevel2:
+      case OMX_ALG_VIDEO_HEVCMainTierLevel2:
         tier = "main";
         level = "2";
         break;
-      case OMX_VIDEO_HEVCMainTierLevel21:
+      case OMX_ALG_VIDEO_HEVCMainTierLevel21:
         tier = "main";
         level = "2.1";
         break;
-      case OMX_VIDEO_HEVCMainTierLevel3:
+      case OMX_ALG_VIDEO_HEVCMainTierLevel3:
         tier = "main";
         level = "3";
         break;
-      case OMX_VIDEO_HEVCMainTierLevel31:
+      case OMX_ALG_VIDEO_HEVCMainTierLevel31:
         tier = "main";
         level = "3.1";
         break;
-      case OMX_VIDEO_HEVCMainTierLevel4:
+      case OMX_ALG_VIDEO_HEVCMainTierLevel4:
         tier = "main";
         level = "4";
         break;
-      case OMX_VIDEO_HEVCMainTierLevel41:
+      case OMX_ALG_VIDEO_HEVCMainTierLevel41:
         tier = "main";
         level = "4.1";
         break;
-      case OMX_VIDEO_HEVCMainTierLevel5:
+      case OMX_ALG_VIDEO_HEVCMainTierLevel5:
         tier = "main";
         level = "5";
         break;
-      case OMX_VIDEO_HEVCMainTierLevel51:
+      case OMX_ALG_VIDEO_HEVCMainTierLevel51:
         tier = "main";
         level = "5.1";
         break;
-      case OMX_VIDEO_HEVCMainTierLevel52:
+      case OMX_ALG_VIDEO_HEVCMainTierLevel52:
         tier = "main";
         level = "5.2";
         break;
-      case OMX_VIDEO_HEVCMainTierLevel6:
+      case OMX_ALG_VIDEO_HEVCMainTierLevel6:
         tier = "main";
         level = "6";
         break;
-      case OMX_VIDEO_HEVCMainTierLevel61:
+      case OMX_ALG_VIDEO_HEVCMainTierLevel61:
         tier = "main";
         level = "6.1";
         break;
-      case OMX_VIDEO_HEVCMainTierLevel62:
+      case OMX_ALG_VIDEO_HEVCMainTierLevel62:
         tier = "main";
         level = "6.2";
         break;
+#if 0
       case OMX_VIDEO_HEVCHighTierLevel1:
         tier = "high";
         level = "1";
@@ -460,35 +461,36 @@ gst_omx_h265_enc_get_caps (GstOMXVideoEnc * enc, GstOMXPort * port,
         tier = "high";
         level = "3.1";
         break;
-      case OMX_VIDEO_HEVCHighTierLevel4:
+#endif
+      case OMX_ALG_VIDEO_HEVCHighTierLevel4:
         tier = "high";
         level = "4";
         break;
-      case OMX_VIDEO_HEVCHighTierLevel41:
+      case OMX_ALG_VIDEO_HEVCHighTierLevel41:
         tier = "high";
         level = "4.1";
         break;
-      case OMX_VIDEO_HEVCHighTierLevel5:
+      case OMX_ALG_VIDEO_HEVCHighTierLevel5:
         tier = "high";
         level = "5";
         break;
-      case OMX_VIDEO_HEVCHighTierLevel51:
+      case OMX_ALG_VIDEO_HEVCHighTierLevel51:
         tier = "high";
         level = "5.1";
         break;
-      case OMX_VIDEO_HEVCHighTierLevel52:
+      case OMX_ALG_VIDEO_HEVCHighTierLevel52:
         tier = "high";
         level = "5.2";
         break;
-      case OMX_VIDEO_HEVCHighTierLevel6:
+      case OMX_ALG_VIDEO_HEVCHighTierLevel6:
         tier = "high";
         level = "6";
         break;
-      case OMX_VIDEO_HEVCHighTierLevel61:
+      case OMX_ALG_VIDEO_HEVCHighTierLevel61:
         tier = "high";
         level = "6.1";
         break;
-      case OMX_VIDEO_HEVCHighTierLevel62:
+      case OMX_ALG_VIDEO_HEVCHighTierLevel62:
         tier = "high";
         level = "6.2";
         break;
