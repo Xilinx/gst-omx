@@ -385,7 +385,19 @@ gst_omx_video_enc_open (GstVideoEncoder * encoder)
   else
   	enable_dmabuf.eMode = OMX_ALG_BUF_NORMAL;
   enable_dmabuf.nPortIndex = self->enc_in_port->index;
-  OMX_SetParameter (self->enc->handle, OMX_ALG_IndexPortParamBufferMode, &enable_dmabuf);
+  enable_dmabuf.nSize = sizeof(enable_dmabuf);
+  enable_dmabuf.nVersion.s.nVersionMajor = OMX_VERSION_MAJOR;
+  enable_dmabuf.nVersion.s.nVersionMinor = OMX_VERSION_MINOR;
+  enable_dmabuf.nVersion.s.nRevision = OMX_VERSION_REVISION;
+  enable_dmabuf.nVersion.s.nStep = OMX_VERSION_STEP;
+
+  err = OMX_SetParameter (self->enc->handle, OMX_ALG_IndexPortParamBufferMode, &enable_dmabuf);
+  if(err != OMX_ErrorNone) {
+  	GST_ERROR_OBJECT (self,
+              "Failed to set DMA mode parameters: %s (0x%08x)",
+              gst_omx_error_to_string (err), err);
+        return FALSE;
+  }
 
   OMX_ALG_VIDEO_PARAM_QUANTIZATION_CONTROL qp_setting; 
   GST_OMX_INIT_STRUCT (&qp_setting);

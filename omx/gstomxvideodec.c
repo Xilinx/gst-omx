@@ -257,6 +257,7 @@ gst_omx_video_dec_open (GstVideoDecoder * decoder)
   GstOMXVideoDec *self = GST_OMX_VIDEO_DEC (decoder);
   GstOMXVideoDecClass *klass = GST_OMX_VIDEO_DEC_GET_CLASS (self);
   gint in_port_index, out_port_index;
+  OMX_ERRORTYPE err;
 
   GST_DEBUG_OBJECT (self, "Opening decoder");
 
@@ -278,7 +279,6 @@ gst_omx_video_dec_open (GstVideoDecoder * decoder)
 
   if (in_port_index == -1 || out_port_index == -1) {
     OMX_PORT_PARAM_TYPE param;
-    OMX_ERRORTYPE err;
 
     GST_OMX_INIT_STRUCT (&param);
 
@@ -306,19 +306,26 @@ gst_omx_video_dec_open (GstVideoDecoder * decoder)
   GST_INFO_OBJECT (self, "Custom settings needed for zynq VCU");
 
   if (self->op_mode == GST_OMX_DEC_OP_DMA_EXPORT) {
-      OMX_INDEXTYPE DMAType;
-      OMX_ALG_PORT_PARAM_BUFFER_MODE dmaBuffer;
-      OMX_ALG_BUFFER_MODE bufferMode = OMX_ALG_BUF_DMA;
+      OMX_ALG_PORT_PARAM_BUFFER_MODE enable_dmabuf;
+      
+      GST_OMX_INIT_STRUCT (&enable_dmabuf);
+      enable_dmabuf.eMode = OMX_ALG_BUF_DMA;
+      enable_dmabuf.nPortIndex = self->dec_out_port->index;
+      enable_dmabuf.nSize = sizeof(enable_dmabuf);
+      enable_dmabuf.nVersion.s.nVersionMajor = OMX_VERSION_MAJOR;
+      enable_dmabuf.nVersion.s.nVersionMinor = OMX_VERSION_MINOR;
+      enable_dmabuf.nVersion.s.nRevision = OMX_VERSION_REVISION;
+      enable_dmabuf.nVersion.s.nStep = OMX_VERSION_STEP;
 
-      OMX_GetExtensionIndex (self->dec->handle,
-          (OMX_STRING) "OMX.allegro.bufferMode", &DMAType);
-
-      GST_OMX_INIT_STRUCT (&dmaBuffer);
-      dmaBuffer.eMode = bufferMode;
-      dmaBuffer.nPortIndex = self->dec_out_port->index;
-
-      OMX_SetParameter (self->dec->handle, DMAType, &dmaBuffer);
- }
+      err = OMX_SetParameter (self->dec->handle, OMX_ALG_IndexPortParamBufferMode, &enable_dmabuf);
+      if(err != OMX_ErrorNone) {
+     	 GST_ERROR_OBJECT (self,
+     	   "Failed to set DMA mode parameters: %s (0x%08x)",
+     	   gst_omx_error_to_string (err), err);
+         return FALSE;
+      }
+      
+  }
 #endif
 
   if (!self->dec_in_port || !self->dec_out_port)
