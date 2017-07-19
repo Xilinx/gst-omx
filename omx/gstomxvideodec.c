@@ -102,7 +102,7 @@ enum
   PROP_IP_MODE,
   PROP_OP_MODE,
   PROP_LATENCY_MODE,
-  PROP_BUFFERING_VALUE,
+  PROP_INTERNAL_ENTROPY_BUFFERS,
 #endif
 };
 
@@ -121,7 +121,7 @@ G_DEFINE_ABSTRACT_TYPE_WITH_CODE (GstOMXVideoDec, gst_omx_video_dec,
 #define DEFAULT_PROP_IP_MODE GST_OMX_DEC_IP_DEFAULT
 #define DEFAULT_PROP_OP_MODE GST_OMX_DEC_OP_DEFAULT
 #define DEFAULT_PROP_LATENCY_MODE OMX_ALG_DPB_NORMAL
-#define DEFAULT_PROP_BUFFERING_VALUE	5
+#define GST_OMX_VIDEO_DEC_INTERNAL_ENTROPY_BUFFERS_DEFAULT 	(5)
 GType
 gst_omx_dec_ip_mode_get_type (void)
 {
@@ -199,17 +199,18 @@ gst_omx_video_dec_class_init (GstOMXVideoDecClass * klass)
           GST_TYPE_OMX_DEC_OP_MODE,
           DEFAULT_PROP_OP_MODE, G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
 
- g_object_class_install_property (gobject_class, PROP_LATENCY_MODE,
+  g_object_class_install_property (gobject_class, PROP_LATENCY_MODE,
       g_param_spec_enum ("latency-mode", "Select latency mode",
           "Decoder latency mode",
           GST_TYPE_OMX_DEC_LATENCY_MODE,
           DEFAULT_PROP_LATENCY_MODE, G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
 
-  g_object_class_install_property (gobject_class, PROP_BUFFERING_VALUE,
-      g_param_spec_uint ("internal-entropy-buffers", "Number of extra buffers for entropy",
-          "Internal entropy buffers used to improve entropy performace.  \
-		Higher buffer count increases memory foot print (5=component default)",
-          2, 16, DEFAULT_PROP_BUFFERING_VALUE,
+  g_object_class_install_property (gobject_class, PROP_INTERNAL_ENTROPY_BUFFERS,
+      g_param_spec_uint ("internal-entropy-buffers", "Internal entropy buffers",
+          "Number of internal buffers used by the decoder to smooth out entropy decoding performance. "
+          "Increasing it will improve the frame rate when decoding high bitrate streams. "
+          "Decreasing (to a minimum of 2) to reduce the memory footprint",
+          2, 16, GST_OMX_VIDEO_DEC_INTERNAL_ENTROPY_BUFFERS_DEFAULT,
           G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS |
           GST_PARAM_MUTABLE_READY));
 
@@ -246,11 +247,61 @@ gst_omx_video_dec_class_init (GstOMXVideoDecClass * klass)
 static void
 gst_omx_video_dec_init (GstOMXVideoDec * self)
 {
+#ifdef USE_OMX_TARGET_ZYNQ_USCALE_PLUS
+  self->internal_entropy_buffers =
+      GST_OMX_VIDEO_DEC_INTERNAL_ENTROPY_BUFFERS_DEFAULT;
+#endif
+
   gst_video_decoder_set_packetized (GST_VIDEO_DECODER (self), TRUE);
 
   g_mutex_init (&self->drain_lock);
   g_cond_init (&self->drain_cond);
 }
+
+#ifdef USE_OMX_TARGET_ZYNQ_USCALE_PLUS
+
+#define CHECK_ERR(setting) \
+  if (err == OMX_ErrorUnsupportedIndex || err == OMX_ErrorUnsupportedSetting) { \
+    GST_WARNING_OBJECT (self, \
+        "Setting " setting " parameters not supported by the component"); \
+  } else if (err != OMX_ErrorNone) { \
+    GST_ERROR_OBJECT (self, \
+        "Failed to set " setting " parameters: %s (0x%08x)", \
+        gst_omx_error_to_string (err), err); \
+    return FALSE; \
+  }
+
+static gboolean
+set_zynqultrascaleplus_props (GstOMXVideoDec * self)
+{
+  OMX_ERRORTYPE err;
+
+  if (self->internal_entropy_buffers !=
+      GST_OMX_VIDEO_DEC_INTERNAL_ENTROPY_BUFFERS_DEFAULT) {
+    OMX_ALG_VIDEO_PARAM_INTERNAL_ENTROPY_BUFFERS entropy_buffers;
+
+    GST_OMX_INIT_STRUCT (&entropy_buffers);
+    entropy_buffers.nPortIndex = self->dec_in_port->index;
+    entropy_buffers.nNumInternalEntropyBuffers = self->internal_entropy_buffers;
+    entropy_buffers.nSize = sizeof (entropy_buffers);
+    entropy_buffers.nVersion.s.nVersionMajor = OMX_VERSION_MAJOR;
+    entropy_buffers.nVersion.s.nVersionMinor = OMX_VERSION_MINOR;
+    entropy_buffers.nVersion.s.nRevision = OMX_VERSION_REVISION;
+    entropy_buffers.nVersion.s.nStep = OMX_VERSION_STEP;
+
+    GST_DEBUG_OBJECT (self, "setting number of internal entrop buffers to %d",
+        self->internal_entropy_buffers);
+
+    err =
+        gst_omx_component_set_parameter (self->dec,
+        (OMX_INDEXTYPE) OMX_ALG_IndexParamVideoInternalEntropyBuffers,
+        &entropy_buffers);
+    CHECK_ERR ("internal entropy buffers");
+  }
+
+  return TRUE;
+}
+#endif
 
 static gboolean
 gst_omx_video_dec_open (GstVideoDecoder * decoder)
@@ -327,6 +378,9 @@ gst_omx_video_dec_open (GstVideoDecoder * decoder)
       }
       
   }
+
+  if (!set_zynqultrascaleplus_props (self))
+    return FALSE;
 #endif
 
   if (!self->dec_in_port || !self->dec_out_port)
@@ -2280,7 +2334,6 @@ gst_omx_video_dec_set_format (GstVideoDecoder * decoder,
         gst_buffer_unmap (mem, &map_info);
         gst_buffer_unref (mem);
         g_list_free (buffer_list);
-
       }
 #endif
       if (gst_omx_port_allocate_buffers (self->dec_out_port) != OMX_ErrorNone)
@@ -2293,23 +2346,6 @@ gst_omx_video_dec_set_format (GstVideoDecoder * decoder,
       return FALSE;
 
 #ifdef USE_OMX_TARGET_ZYNQ_USCALE_PLUS
-  OMX_ALG_VIDEO_PARAM_INTERNAL_ENTROPY_BUFFERS entropy_buffers;
-  GST_OMX_INIT_STRUCT (&entropy_buffers);
-  entropy_buffers.nSize = sizeof (entropy_buffers);
-  entropy_buffers.nVersion.s.nVersionMajor = OMX_VERSION_MAJOR;
-  entropy_buffers.nVersion.s.nVersionMinor = OMX_VERSION_MINOR;
-  entropy_buffers.nVersion.s.nRevision = OMX_VERSION_REVISION;
-  entropy_buffers.nVersion.s.nStep = OMX_VERSION_STEP;
-  entropy_buffers.nPortIndex = self->dec_in_port->index;
-  entropy_buffers.nNumInternalEntropyBuffers = self->buffering_count;
-  err = OMX_SetParameter (self->dec->handle, OMX_ALG_IndexParamVideoInternalEntropyBuffers, &entropy_buffers);
-  if(err != OMX_ErrorNone) {
-  	GST_ERROR_OBJECT (self,
-              "Failed to set Internal entropy mode parameters: %s (0x%08x)",
-              gst_omx_error_to_string (err), err);
-        return FALSE;
-  }
-
   OMX_ALG_VIDEO_PARAM_DECODED_PICTURE_BUFFER dpb_setting;
   GST_OMX_INIT_STRUCT (&dpb_setting);
   dpb_setting.nSize = sizeof (dpb_setting);
@@ -2930,8 +2966,8 @@ gst_omx_video_dec_set_property (GObject * object, guint prop_id,
     case PROP_LATENCY_MODE:
       self->latency_mode = g_value_get_enum (value);
       break;
-    case PROP_BUFFERING_VALUE:
-      self->buffering_count = g_value_get_uint (value);
+    case PROP_INTERNAL_ENTROPY_BUFFERS:
+      self->internal_entropy_buffers = g_value_get_uint (value);
       break;
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
@@ -2954,8 +2990,8 @@ gst_omx_video_dec_get_property (GObject * object, guint prop_id,
     case PROP_LATENCY_MODE:
       g_value_set_enum (value, self->latency_mode);
       break;
-    case PROP_BUFFERING_VALUE:
-      g_value_set_uint (value, self->buffering_count);
+    case PROP_INTERNAL_ENTROPY_BUFFERS:
+      g_value_set_uint (value, self->internal_entropy_buffers);
       break;
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);

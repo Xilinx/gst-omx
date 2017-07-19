@@ -107,7 +107,7 @@ GType gst_omx_dec_op_mode_get_type (void);
        GstOMXDecIpMode ip_mode;
        GstOMXDecOpMode op_mode;
        OMX_ALG_EDpbMode latency_mode;
-       guint32 buffering_count;
+       guint32 internal_entropy_buffers;
 #endif
      };
 
