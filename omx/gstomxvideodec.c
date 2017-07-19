@@ -206,8 +206,9 @@ gst_omx_video_dec_class_init (GstOMXVideoDecClass * klass)
           DEFAULT_PROP_LATENCY_MODE, G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
 
   g_object_class_install_property (gobject_class, PROP_BUFFERING_VALUE,
-      g_param_spec_uint ("buffering-count", "Number of processing buffers to be used by decoder",
-          "Set it when decoder fails to get required performance (5=component default)",
+      g_param_spec_uint ("internal-entropy-buffers", "Number of extra buffers for entropy",
+          "Internal entropy buffers used to improve entropy performace.  \
+		Higher buffer count increases memory foot print (5=component default)",
           2, 16, DEFAULT_PROP_BUFFERING_VALUE,
           G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS |
           GST_PARAM_MUTABLE_READY));
@@ -2033,6 +2034,7 @@ gst_omx_video_dec_set_format (GstVideoDecoder * decoder,
   gboolean is_format_change = FALSE;
   gboolean needs_disable = FALSE;
   OMX_PARAM_PORTDEFINITIONTYPE port_def;
+  OMX_ERRORTYPE err;
 #ifdef USE_OMX_TARGET_ZYNQ_USCALE_PLUS
   GList *buffer_list = NULL;
   GstMapInfo map_info;
@@ -2300,7 +2302,13 @@ gst_omx_video_dec_set_format (GstVideoDecoder * decoder,
   entropy_buffers.nVersion.s.nStep = OMX_VERSION_STEP;
   entropy_buffers.nPortIndex = self->dec_in_port->index;
   entropy_buffers.nNumInternalEntropyBuffers = self->buffering_count;
-  OMX_SetParameter (self->dec->handle, OMX_ALG_IndexParamVideoInternalEntropyBuffers, &entropy_buffers);
+  err = OMX_SetParameter (self->dec->handle, OMX_ALG_IndexParamVideoInternalEntropyBuffers, &entropy_buffers);
+  if(err != OMX_ErrorNone) {
+  	GST_ERROR_OBJECT (self,
+              "Failed to set Internal entropy mode parameters: %s (0x%08x)",
+              gst_omx_error_to_string (err), err);
+        return FALSE;
+  }
 
   OMX_ALG_VIDEO_PARAM_DECODED_PICTURE_BUFFER dpb_setting;
   GST_OMX_INIT_STRUCT (&dpb_setting);
@@ -2311,7 +2319,13 @@ gst_omx_video_dec_set_format (GstVideoDecoder * decoder,
   dpb_setting.nVersion.s.nStep = OMX_VERSION_STEP;
   dpb_setting.nPortIndex = self->dec_in_port->index;
   dpb_setting.eDecodedPictureBufferMode = self->latency_mode;
-  OMX_SetParameter (self->dec->handle, OMX_ALG_IndexParamVideoDecodedPictureBuffer, &dpb_setting);
+  err = OMX_SetParameter (self->dec->handle, OMX_ALG_IndexParamVideoDecodedPictureBuffer, &dpb_setting);
+  if(err != OMX_ErrorNone) {
+  	GST_ERROR_OBJECT (self,
+              "Failed to set latency mode parameters: %s (0x%08x)",
+              gst_omx_error_to_string (err), err);
+        return FALSE;
+  }
 #endif
 
     if (gst_omx_component_set_state (self->dec,

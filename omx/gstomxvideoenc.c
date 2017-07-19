@@ -406,7 +406,13 @@ gst_omx_video_enc_open (GstVideoEncoder * encoder)
   else if(self->qp_mode == GST_OMX_ENC_AUTO_QP)
   	qp_setting.eQpControlMode = OMX_ALG_AUTO_QP;
   qp_setting.nPortIndex = self->enc_in_port->index;
-  OMX_SetParameter (self->enc->handle, OMX_ALG_IndexParamVideoQuantizationControl, &qp_setting);
+  err = OMX_SetParameter (self->enc->handle, OMX_ALG_IndexParamVideoQuantizationControl, &qp_setting);
+  if(err != OMX_ErrorNone) {
+  	GST_WARNING_OBJECT (self,
+              "Failed to set QP mode parameters: %s (0x%08x)",
+              gst_omx_error_to_string (err), err);
+  }
+
 #endif
 
   if (!self->enc_in_port || !self->enc_out_port)
