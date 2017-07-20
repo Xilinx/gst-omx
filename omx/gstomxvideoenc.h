@@ -76,6 +76,7 @@ struct _GstOMXVideoEnc
   guint32 quant_i_frames;
   guint32 quant_p_frames;
   guint32 quant_b_frames;
+#ifdef USE_OMX_TARGET_ZYNQ_USCALE_PLUS
   guint32 stride;
   guint32 input_mode;
   guint32 l2cache;
@@ -88,7 +89,7 @@ struct _GstOMXVideoEnc
   gint bufpool_complete;
   gint count;
   GList *garray;
-
+#endif
   GstFlowReturn downstream_flow_ret;
 };
 

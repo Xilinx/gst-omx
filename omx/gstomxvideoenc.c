@@ -58,6 +58,8 @@ gst_omx_video_enc_control_rate_get_type (void)
   return qtype;
 }
 
+#ifdef USE_OMX_TARGET_ZYNQ_USCALE_PLUS
+
 #define GST_TYPE_OMX_VIDEO_ENC_INPUT_MODE_TYPE (gst_omx_video_enc_input_mode_type ())
 static GType
 gst_omx_video_enc_input_mode_type (void)
@@ -80,30 +82,30 @@ gst_omx_video_enc_input_mode_type (void)
   return qtype;
 }
 
-#define GST_TYPE_OMX_VIDEO_ENC_QP_MODE_TYPE (gst_omx_video_enc_qp_mode_type ())
 
-typedef enum {
-	GST_OMX_ENC_UNIFORM_QP,
-	GST_OMX_ENC_AUTO_QP
-}GstOMXVideoEncQpModeType;
-
-
+#define GST_TYPE_OMX_VIDEO_ENC_QP_MODE (gst_omx_video_enc_qp_mode_get_type ())
 static GType
-gst_omx_video_enc_qp_mode_type (void)
+gst_omx_video_enc_qp_mode_get_type (void)
 {
   static GType qtype = 0;
 
   if (qtype == 0) {
     static const GEnumValue values[] = {
-      {GST_OMX_ENC_UNIFORM_QP, "QpModeUniform", "uniform"},
-      {GST_OMX_ENC_AUTO_QP, "QpModeAuto", "auto"},
+      {OMX_ALG_UNIFORM_QP, "Use the same QP for all coding units of the frame",
+          "uniform"},
+      {OMX_ALG_AUTO_QP,
+            "Let the VCU encoder change the QP for each coding unit according to its content",
+          "auto"},
+      {0xffffffff, "Component Default", "default"},
       {0, NULL, NULL}
     };
 
-    qtype = g_enum_register_static ("GstOMXVideoEncQpModeType", values);
+    qtype = g_enum_register_static ("GstOMXVideoEncQpMode", values);
   }
   return qtype;
 }
+
+#endif
 /* prototypes */
 static void gst_omx_video_enc_finalize (GObject * object);
 static void gst_omx_video_enc_set_property (GObject * object, guint prop_id,
@@ -152,7 +154,7 @@ enum
   PROP_INPUT_MODE,
   PROP_L2CACHE,
   PROP_SLICEHEIGHT,
-  PROP_QPMODE,
+  PROP_QP_MODE,
   PROP_SLICE
 };
 
@@ -167,7 +169,7 @@ enum
 #define GST_OMX_VIDEO_ENC_L2CACHE_MAXSIZE (4096)
 #define GST_OMX_VIDEO_ENC_STRIDE_DEFAULT (1)
 #define GST_OMX_VIDEO_ENC_SLICEHEIGHT_DEFAULT (1)
-#define GST_OMX_VIDEO_ENC_QP_MODE_DEFAULT GST_OMX_ENC_UNIFORM_QP 
+#define GST_OMX_VIDEO_ENC_QP_MODE_DEFAULT (0xffffffff) 
 #define GST_OMX_VIDEO_ENC_SLICE_DEFAULT (1)
 
 /* class initialization */
@@ -259,10 +261,10 @@ gst_omx_video_enc_class_init (GstOMXVideoEncClass * klass)
           G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS |
           GST_PARAM_MUTABLE_READY));
 
-  g_object_class_install_property (gobject_class, PROP_QPMODE,
-      g_param_spec_enum ("qpmode", "Qp mode type",
-          "Type of QP mode selection for encoder",
-          GST_TYPE_OMX_VIDEO_ENC_QP_MODE_TYPE,
+  g_object_class_install_property (gobject_class, PROP_QP_MODE,
+      g_param_spec_enum ("qp-mode", "QP mode",
+          "QP control mode used by the VCU encoder",
+          GST_TYPE_OMX_VIDEO_ENC_QP_MODE,
           GST_OMX_VIDEO_ENC_QP_MODE_DEFAULT,
           G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS |
           GST_PARAM_MUTABLE_READY));
@@ -311,10 +313,53 @@ gst_omx_video_enc_init (GstOMXVideoEnc * self)
   self->quant_i_frames = GST_OMX_VIDEO_ENC_QUANT_I_FRAMES_DEFAULT;
   self->quant_p_frames = GST_OMX_VIDEO_ENC_QUANT_P_FRAMES_DEFAULT;
   self->quant_b_frames = GST_OMX_VIDEO_ENC_QUANT_B_FRAMES_DEFAULT;
+#ifdef USE_OMX_TARGET_ZYNQ_USCALE_PLUS
+  self->qp_mode = GST_OMX_VIDEO_ENC_QP_MODE_DEFAULT;
+#endif
 
   g_mutex_init (&self->drain_lock);
   g_cond_init (&self->drain_cond);
 }
+
+
+#ifdef USE_OMX_TARGET_ZYNQ_USCALE_PLUS
+
+#define CHECK_ERR(setting) \
+  if (err == OMX_ErrorUnsupportedIndex || err == OMX_ErrorUnsupportedSetting) { \
+    GST_WARNING_OBJECT (self, \
+        "Setting " setting " parameters not supported by the component"); \
+  } else if (err != OMX_ErrorNone) { \
+    GST_ERROR_OBJECT (self, \
+        "Failed to set " setting " parameters: %s (0x%08x)", \
+        gst_omx_error_to_string (err), err); \
+    return FALSE; \
+  }
+
+static gboolean
+set_zynqultrascaleplus_props (GstOMXVideoEnc * self)
+{
+  OMX_ERRORTYPE err;
+
+  if (self->qp_mode != GST_OMX_VIDEO_ENC_QP_MODE_DEFAULT) {
+    OMX_ALG_VIDEO_PARAM_QUANTIZATION_CONTROL quant;
+
+    GST_OMX_INIT_STRUCT (&quant);
+    quant.nPortIndex = self->enc_out_port->index;
+    quant.eQpControlMode = self->qp_mode;
+
+    GST_DEBUG_OBJECT (self, "setting QP mode to %d", self->qp_mode);
+
+    err =
+        gst_omx_component_set_parameter (self->enc,
+        (OMX_INDEXTYPE) OMX_ALG_IndexParamVideoQuantizationControl, &quant);
+    CHECK_ERR ("quantization");
+  }
+
+  return TRUE;
+}
+#endif
+
+
 
 static gboolean
 gst_omx_video_enc_open (GstVideoEncoder * encoder)
@@ -397,20 +442,6 @@ gst_omx_video_enc_open (GstVideoEncoder * encoder)
               "Failed to set DMA mode parameters: %s (0x%08x)",
               gst_omx_error_to_string (err), err);
         return FALSE;
-  }
-
-  OMX_ALG_VIDEO_PARAM_QUANTIZATION_CONTROL qp_setting; 
-  GST_OMX_INIT_STRUCT (&qp_setting);
-  if(self->qp_mode == GST_OMX_ENC_UNIFORM_QP)
-  	qp_setting.eQpControlMode = OMX_ALG_UNIFORM_QP;
-  else if(self->qp_mode == GST_OMX_ENC_AUTO_QP)
-  	qp_setting.eQpControlMode = OMX_ALG_AUTO_QP;
-  qp_setting.nPortIndex = self->enc_in_port->index;
-  err = OMX_SetParameter (self->enc->handle, OMX_ALG_IndexParamVideoQuantizationControl, &qp_setting);
-  if(err != OMX_ErrorNone) {
-  	GST_WARNING_OBJECT (self,
-              "Failed to set QP mode parameters: %s (0x%08x)",
-              gst_omx_error_to_string (err), err);
   }
 
 #endif
@@ -509,6 +540,10 @@ gst_omx_video_enc_open (GstVideoEncoder * encoder)
 
       }
     }
+#ifdef USE_OMX_TARGET_ZYNQ_USCALE_PLUS
+    if (!set_zynqultrascaleplus_props (self))
+      return FALSE;
+#endif
   }
 
   return TRUE;
@@ -619,7 +654,7 @@ gst_omx_video_enc_set_property (GObject * object, guint prop_id,
     case PROP_SLICEHEIGHT:
       self->sliceHeight = g_value_get_uint (value);
       break;
-    case PROP_QPMODE:
+    case PROP_QP_MODE:
       self->qp_mode = g_value_get_enum (value);
       break;
     case PROP_SLICE:
@@ -665,7 +700,7 @@ gst_omx_video_enc_get_property (GObject * object, guint prop_id, GValue * value,
     case PROP_SLICEHEIGHT:
       g_value_set_uint (value, self->sliceHeight);
       break;
-    case PROP_QPMODE:
+    case PROP_QP_MODE:
       g_value_set_enum (value, self->qp_mode);
       break;
     case PROP_SLICE:
