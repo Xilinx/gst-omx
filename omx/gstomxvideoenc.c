@@ -150,12 +150,14 @@ enum
   PROP_QUANT_I_FRAMES,
   PROP_QUANT_P_FRAMES,
   PROP_QUANT_B_FRAMES,
+#ifdef USE_OMX_TARGET_ZYNQ_USCALE_PLUS
   PROP_STRIDE,
   PROP_INPUT_MODE,
   PROP_L2CACHE,
   PROP_SLICEHEIGHT,
   PROP_QP_MODE,
-  PROP_SLICE
+  PROP_NUM_SLICES
+#endif
 };
 
 /* FIXME: Better defaults */
@@ -170,7 +172,7 @@ enum
 #define GST_OMX_VIDEO_ENC_STRIDE_DEFAULT (1)
 #define GST_OMX_VIDEO_ENC_SLICEHEIGHT_DEFAULT (1)
 #define GST_OMX_VIDEO_ENC_QP_MODE_DEFAULT (0xffffffff) 
-#define GST_OMX_VIDEO_ENC_SLICE_DEFAULT (1)
+#define GST_OMX_VIDEO_ENC_NUM_SLICES_DEFAULT (0xffffffff)
 
 /* class initialization */
 
@@ -269,12 +271,14 @@ gst_omx_video_enc_class_init (GstOMXVideoEncClass * klass)
           G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS |
           GST_PARAM_MUTABLE_READY));
   
- g_object_class_install_property (gobject_class, PROP_SLICE,
-      g_param_spec_uint ("slice", "Number of slices",
-          "Number of slice in each frame,For HEVC max slices depend on resolution & level,here max possible value is 22(1=component default)",
-          1, 135, GST_OMX_VIDEO_ENC_SLICE_DEFAULT,
+  g_object_class_install_property (gobject_class, PROP_NUM_SLICES,
+      g_param_spec_uint ("num-slices", "Number of slices",
+          "Number of slices used for each frame. Each slice contains one or more complete macroblock/CTU row(s). "
+          "Slices are distributed over the frame as regularly as possible. (0xffffffff=component default)",
+          1, G_MAXUINT, GST_OMX_VIDEO_ENC_NUM_SLICES_DEFAULT,
           G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS |
           GST_PARAM_MUTABLE_READY));
+
 
   element_class->change_state =
       GST_DEBUG_FUNCPTR (gst_omx_video_enc_change_state);
@@ -315,6 +319,7 @@ gst_omx_video_enc_init (GstOMXVideoEnc * self)
   self->quant_b_frames = GST_OMX_VIDEO_ENC_QUANT_B_FRAMES_DEFAULT;
 #ifdef USE_OMX_TARGET_ZYNQ_USCALE_PLUS
   self->qp_mode = GST_OMX_VIDEO_ENC_QP_MODE_DEFAULT;
+  self->num_slices = GST_OMX_VIDEO_ENC_NUM_SLICES_DEFAULT;
 #endif
 
   g_mutex_init (&self->drain_lock);
@@ -353,6 +358,21 @@ set_zynqultrascaleplus_props (GstOMXVideoEnc * self)
         gst_omx_component_set_parameter (self->enc,
         (OMX_INDEXTYPE) OMX_ALG_IndexParamVideoQuantizationControl, &quant);
     CHECK_ERR ("quantization");
+  }
+
+  if (self->num_slices != GST_OMX_VIDEO_ENC_NUM_SLICES_DEFAULT) {
+    OMX_ALG_VIDEO_PARAM_SLICES slices;
+
+    GST_OMX_INIT_STRUCT (&slices);
+    slices.nPortIndex = self->enc_out_port->index;
+    slices.nNumSlices = self->num_slices;
+
+    GST_DEBUG_OBJECT (self, "setting number of slices to %d", self->num_slices);
+
+    err =
+        gst_omx_component_set_parameter (self->enc,
+        (OMX_INDEXTYPE) OMX_ALG_IndexParamVideoSlices, &slices);
+    CHECK_ERR ("slices");
   }
 
   return TRUE;
@@ -657,8 +677,8 @@ gst_omx_video_enc_set_property (GObject * object, guint prop_id,
     case PROP_QP_MODE:
       self->qp_mode = g_value_get_enum (value);
       break;
-    case PROP_SLICE:
-      self->slice = g_value_get_uint (value);
+    case PROP_NUM_SLICES:
+      self->num_slices = g_value_get_uint (value);
       break;
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
@@ -703,8 +723,8 @@ gst_omx_video_enc_get_property (GObject * object, guint prop_id, GValue * value,
     case PROP_QP_MODE:
       g_value_set_enum (value, self->qp_mode);
       break;
-    case PROP_SLICE:
-      g_value_set_uint (value, self->slice);
+    case PROP_NUM_SLICES:
+      g_value_set_uint (value, self->num_slices);
       break;
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
