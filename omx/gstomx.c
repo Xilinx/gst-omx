@@ -2224,6 +2224,7 @@ gst_omx_port_populate_unlocked (GstOMXPort * port)
        * valid anymore after the buffer was consumed
        */
       buf->omx_buf->nFlags = 0;
+      buf->omx_buf->nFilledLen = 0;
 
       err = OMX_FillThisBuffer (comp->handle, buf->omx_buf);
 
