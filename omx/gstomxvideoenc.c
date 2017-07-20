@@ -42,6 +42,7 @@ gst_omx_video_enc_control_rate_get_type (void)
 
   if (qtype == 0) {
     static const GEnumValue values[] = {
+#ifndef USE_OMX_TARGET_ZYNQ_USCALE_PLUS
       {OMX_Video_ControlRateDisable, "Disable", "disable"},
       {OMX_Video_ControlRateVariable, "Variable", "variable"},
       {OMX_Video_ControlRateConstant, "Constant", "constant"},
@@ -51,6 +52,14 @@ gst_omx_video_enc_control_rate_get_type (void)
           "constant-skip-frames"},
       {0xffffffff, "Component Default", "default"},
       {0, NULL, NULL}
+#else
+      {OMX_Video_ControlRateDisable, "Disable", "CONST_QP"},
+      {OMX_Video_ControlRateVariable, "Variable", "variable bitrate(VBR)"},
+      {OMX_Video_ControlRateConstant, "Constant", "constant bitrate(CBR)"},
+      {OMX_ALG_Video_ControlRateLowLatency, "Lowlatency", "Low Latency rate control"},
+      {0xffffffff, "Component Default", "default"},
+      {0, NULL, NULL}
+#endif
     };
 
     qtype = g_enum_register_static ("GstOMXVideoEncControlRate", values);
@@ -205,12 +214,21 @@ gst_omx_video_enc_class_init (GstOMXVideoEncClass * klass)
           G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS |
           GST_PARAM_MUTABLE_READY));
 
+#ifndef USE_OMX_TARGET_ZYNQ_USCALE_PLUS
   g_object_class_install_property (gobject_class, PROP_TARGET_BITRATE,
       g_param_spec_uint ("target-bitrate", "Target Bitrate",
           "Target bitrate (0xffffffff=component default)",
           0, G_MAXUINT, GST_OMX_VIDEO_ENC_TARGET_BITRATE_DEFAULT,
           G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS |
           GST_PARAM_MUTABLE_PLAYING));
+#else
+  g_object_class_install_property (gobject_class, PROP_TARGET_BITRATE,
+      g_param_spec_uint ("target-bitrate", "Target Bitrate in Kbps",
+          "Target bitrate in Kbps (0xffffffff=component default)",
+          0, G_MAXUINT, GST_OMX_VIDEO_ENC_TARGET_BITRATE_DEFAULT,
+          G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS |
+          GST_PARAM_MUTABLE_PLAYING));
+#endif
 
   g_object_class_install_property (gobject_class, PROP_QUANT_I_FRAMES,
       g_param_spec_uint ("quant-i-frames", "I-Frame Quantization",
@@ -494,6 +512,7 @@ gst_omx_video_enc_open (GstVideoEncoder * encoder)
           bitrate_param.eControlRate = self->control_rate;
         if (self->target_bitrate != 0xffffffff)
           bitrate_param.nTargetBitrate = self->target_bitrate;
+
 
         err =
             gst_omx_component_set_parameter (self->enc,
