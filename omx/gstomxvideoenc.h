@@ -83,6 +83,8 @@ struct _GstOMXVideoEnc
   guint32 sliceHeight;
   guint32 qp_mode;
   guint32 num_slices;
+  guint32 min_qp;
+  guint32 max_qp;
 
   GList *buffer_list;
   gint g_dmalist_count;

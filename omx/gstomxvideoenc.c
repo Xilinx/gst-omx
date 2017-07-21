@@ -165,7 +165,9 @@ enum
   PROP_L2CACHE,
   PROP_SLICEHEIGHT,
   PROP_QP_MODE,
-  PROP_NUM_SLICES
+  PROP_NUM_SLICES,
+  PROP_MIN_QUANT,
+  PROP_MAX_QUANT
 #endif
 };
 
@@ -182,6 +184,8 @@ enum
 #define GST_OMX_VIDEO_ENC_SLICEHEIGHT_DEFAULT (1)
 #define GST_OMX_VIDEO_ENC_QP_MODE_DEFAULT (0xffffffff) 
 #define GST_OMX_VIDEO_ENC_NUM_SLICES_DEFAULT (0xffffffff)
+#define GST_OMX_VIDEO_ENC_MIN_QP_DEFAULT (10)
+#define GST_OMX_VIDEO_ENC_MAX_QP_DEFAULT (51)
 
 /* class initialization */
 
@@ -296,7 +300,20 @@ gst_omx_video_enc_class_init (GstOMXVideoEncClass * klass)
           1, G_MAXUINT, GST_OMX_VIDEO_ENC_NUM_SLICES_DEFAULT,
           G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS |
           GST_PARAM_MUTABLE_READY));
-
+  
+  g_object_class_install_property (gobject_class, PROP_MIN_QUANT,
+      g_param_spec_uint ("min-qp", "min Quantization value",
+          "Minimum QP value allowed in VBR rate control (10=component default)",
+          0, 51, GST_OMX_VIDEO_ENC_MIN_QP_DEFAULT,
+          G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS |
+          GST_PARAM_MUTABLE_READY));
+  
+  g_object_class_install_property (gobject_class, PROP_MAX_QUANT,
+      g_param_spec_uint ("max-qp", "max Quantization value",
+          "Maximum QP value allowed in encoding session (51=component default)",
+          0, 51, GST_OMX_VIDEO_ENC_MAX_QP_DEFAULT,
+          G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS |
+          GST_PARAM_MUTABLE_READY));
 
   element_class->change_state =
       GST_DEBUG_FUNCPTR (gst_omx_video_enc_change_state);
@@ -338,6 +355,8 @@ gst_omx_video_enc_init (GstOMXVideoEnc * self)
 #ifdef USE_OMX_TARGET_ZYNQ_USCALE_PLUS
   self->qp_mode = GST_OMX_VIDEO_ENC_QP_MODE_DEFAULT;
   self->num_slices = GST_OMX_VIDEO_ENC_NUM_SLICES_DEFAULT;
+  self->min_qp = GST_OMX_VIDEO_ENC_MIN_QP_DEFAULT;
+  self->max_qp = GST_OMX_VIDEO_ENC_MAX_QP_DEFAULT;
 #endif
 
   g_mutex_init (&self->drain_lock);
@@ -391,6 +410,23 @@ set_zynqultrascaleplus_props (GstOMXVideoEnc * self)
         gst_omx_component_set_parameter (self->enc,
         (OMX_INDEXTYPE) OMX_ALG_IndexParamVideoSlices, &slices);
     CHECK_ERR ("slices");
+  }
+
+  if (self->min_qp != GST_OMX_VIDEO_ENC_MIN_QP_DEFAULT ||
+	self->max_qp != GST_OMX_VIDEO_ENC_MAX_QP_DEFAULT ) {
+    OMX_ALG_VIDEO_PARAM_QUANTIZATION_EXTENSION qp_values;
+
+    GST_OMX_INIT_STRUCT (&qp_values);
+    qp_values.nPortIndex = self->enc_out_port->index;
+    qp_values.nQpMin = self->min_qp;
+    qp_values.nQpMax = self->max_qp;
+
+    GST_DEBUG_OBJECT (self, "setting min QP as %d and max QP as %d", self->min_qp, self->max_qp);
+
+    err =
+        gst_omx_component_set_parameter (self->enc,
+        (OMX_INDEXTYPE)OMX_ALG_IndexParamVideoQuantizationExtension, &qp_values);
+    CHECK_ERR ("min-qp & max-qp");
   }
 
   return TRUE;
@@ -699,6 +735,12 @@ gst_omx_video_enc_set_property (GObject * object, guint prop_id,
     case PROP_NUM_SLICES:
       self->num_slices = g_value_get_uint (value);
       break;
+    case PROP_MIN_QUANT:
+      self->min_qp = g_value_get_uint (value);
+      break;
+    case PROP_MAX_QUANT:
+      self->max_qp = g_value_get_uint (value);
+      break;
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
       break;
@@ -744,6 +786,12 @@ gst_omx_video_enc_get_property (GObject * object, guint prop_id, GValue * value,
       break;
     case PROP_NUM_SLICES:
       g_value_set_uint (value, self->num_slices);
+      break;
+    case PROP_MIN_QUANT:
+      g_value_set_uint (value, self->min_qp);
+      break;
+    case PROP_MAX_QUANT:
+      g_value_set_uint (value, self->max_qp);
       break;
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
