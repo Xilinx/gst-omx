@@ -45,10 +45,15 @@ enum
   PROP_0,
   PROP_GOP_LENGTH,
   PROP_B_FRAMES,
+  PROP_SLICE_SIZE,
+  PROP_DEPENDENT_SLICE
 };
 
 #define GST_OMX_H265_ENC_GOP_LENGTH_DEFAULT (30)
 #define GST_OMX_H265_ENC_B_FRAMES_DEFAULT (0)
+#define GST_OMX_H265_ENC_SLICE_SIZE_DEFAULT (0)
+#define GST_OMX_H265_ENC_DEPENDENT_SLICE_DEFAULT (FALSE)
+
 
 /* class initialization */
 
@@ -73,6 +78,12 @@ gst_omx_h265_enc_set_property (GObject * object, guint prop_id,
     case PROP_B_FRAMES:
       self->b_frames = g_value_get_uint (value);
       break;
+    case PROP_SLICE_SIZE:
+      self->slice_size = g_value_get_uint (value);
+      break;
+    case PROP_DEPENDENT_SLICE:
+      self->dependent_slice = g_value_get_boolean (value);
+      break;
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
       break;
@@ -91,6 +102,12 @@ gst_omx_h265_enc_get_property (GObject * object, guint prop_id, GValue * value,
       break;
     case PROP_B_FRAMES:
       g_value_set_uint (value, self->b_frames);
+      break;
+    case PROP_SLICE_SIZE:
+      g_value_set_uint (value, self->slice_size);
+      break;
+    case PROP_DEPENDENT_SLICE:
+      g_value_set_boolean (value, self->dependent_slice);
       break;
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
@@ -176,6 +193,28 @@ gst_omx_h265_enc_open (GstVideoEncoder * encoder)
         gst_omx_error_to_string (err), err);
   }
 
+  if (self->slice_size != GST_OMX_H265_ENC_SLICE_SIZE_DEFAULT ||
+      self->dependent_slice != GST_OMX_H265_ENC_DEPENDENT_SLICE_DEFAULT) {
+    OMX_ALG_VIDEO_PARAM_SLICES slices;
+
+    GST_OMX_INIT_STRUCT (&slices);
+    slices.nPortIndex = omx_enc->enc_out_port->index;
+    slices.nSlicesSize = self->slice_size;
+    slices.bDependentSlices = self->dependent_slice;
+
+    GST_DEBUG_OBJECT (self, "setting size of slices to %d", self->slice_size);
+
+    err =
+        gst_omx_component_set_parameter (omx_enc->enc,
+        (OMX_INDEXTYPE) OMX_ALG_IndexParamVideoSlices, &slices);
+    if (err != OMX_ErrorNone) {
+      GST_ERROR_OBJECT (self,
+          "Failed to set HEVC parameters: %s (0x%08x)",
+          gst_omx_error_to_string (err), err);
+      return FALSE;
+    }
+  }
+
   return TRUE;
 }
 
@@ -209,6 +248,21 @@ gst_omx_h265_enc_class_init (GstOMXH265EncClass * klass)
           G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS |
           GST_PARAM_MUTABLE_READY));
 
+  g_object_class_install_property (gobject_class, PROP_SLICE_SIZE,
+      g_param_spec_uint ("slice-size", "size of each slices",
+          "Target Slice Size, If set to 0, slices are defined by the num-slices parameter,"
+	  "Otherwise it specifies the target slice size, in bytes, that the encoder uses to"
+	   "automatically split the bitstream into approximately equally-sized slices (0=component default)",
+          0, 65535 , GST_OMX_H265_ENC_SLICE_SIZE_DEFAULT,
+          G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS |
+          GST_PARAM_MUTABLE_READY));
+
+  g_object_class_install_property (gobject_class, PROP_DEPENDENT_SLICE,
+      g_param_spec_boolean ("dependent-slice", "Enable/disable dependent slice",
+          "In Multiple slices encoding,specify whether the additional slices are"
+          "Dependent slice segments or regular slices (false=component default)",
+	  GST_OMX_H265_ENC_DEPENDENT_SLICE_DEFAULT, G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
+
   basevideoenc_class->open = gst_omx_h265_enc_open;
 
   videoenc_class->cdata.default_src_template_caps = "video/x-h265, "
@@ -230,6 +284,8 @@ gst_omx_h265_enc_init (GstOMXH265Enc * self)
 {
   self->gop_length = GST_OMX_H265_ENC_GOP_LENGTH_DEFAULT;
   self->b_frames = GST_OMX_H265_ENC_B_FRAMES_DEFAULT;
+  self->slice_size = GST_OMX_H265_ENC_SLICE_SIZE_DEFAULT; 
+  self->dependent_slice = GST_OMX_H265_ENC_DEPENDENT_SLICE_DEFAULT;	
 
   self->insert_sps_pps = TRUE;
 }

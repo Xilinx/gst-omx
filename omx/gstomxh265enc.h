@@ -46,6 +46,8 @@ struct _GstOMXH265Enc
   gboolean insert_sps_pps;
   guint32 gop_length;
   guint32 b_frames;
+  guint32 slice_size;
+  gboolean dependent_slice; 
 };
 
 struct _GstOMXH265EncClass
