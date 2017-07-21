@@ -11,13 +11,11 @@ THEORA_H_FILES=gstomxtheoradec.h
 endif
 
 if USE_OMX_TARGET_ZYNQ_USCALE_PLUS
-	$(H265_C_FILES)= \
-			gstomxh265enc.c \
-		        gstomxh265dec.c \
-		        gstomxh265utils.c \
-	$(H265_H_FILES)= \
-			gstomxh265enc.h \
-			gstomxh265utils.h
+H265_C_FILES=gstomxh265enc.c \
+	     gstomxh265dec.c \
+	     gstomxh265utils.c \
+H265_H_FILES=gstomxh265enc.h \
+	     gstomxh265utils.h
 endif
 
 libgstomx_la_SOURCES = \
