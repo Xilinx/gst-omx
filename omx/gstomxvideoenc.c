@@ -174,9 +174,15 @@ enum
 /* FIXME: Better defaults */
 #define GST_OMX_VIDEO_ENC_CONTROL_RATE_DEFAULT (0xffffffff)
 #define GST_OMX_VIDEO_ENC_TARGET_BITRATE_DEFAULT (0xffffffff)
+#ifndef USE_OMX_TARGET_ZYNQ_USCALE_PLUS
 #define GST_OMX_VIDEO_ENC_QUANT_I_FRAMES_DEFAULT (0xffffffff)
 #define GST_OMX_VIDEO_ENC_QUANT_P_FRAMES_DEFAULT (0xffffffff)
 #define GST_OMX_VIDEO_ENC_QUANT_B_FRAMES_DEFAULT (0xffffffff)
+#else
+#define GST_OMX_VIDEO_ENC_QUANT_I_FRAMES_DEFAULT (30)
+#define GST_OMX_VIDEO_ENC_QUANT_P_FRAMES_DEFAULT (30)
+#define GST_OMX_VIDEO_ENC_QUANT_B_FRAMES_DEFAULT (30)
+#endif
 #define GST_OMX_VIDEO_ENC_INPUT_MODE_DEFAULT (0xffffffff)
 #define GST_OMX_VIDEO_ENC_L2CACHE_DEFAULT (0)
 #define GST_OMX_VIDEO_ENC_L2CACHE_MAXSIZE (4096)
@@ -234,6 +240,7 @@ gst_omx_video_enc_class_init (GstOMXVideoEncClass * klass)
           GST_PARAM_MUTABLE_PLAYING));
 #endif
 
+#ifndef USE_OMX_TARGET_ZYNQ_USCALE_PLUS
   g_object_class_install_property (gobject_class, PROP_QUANT_I_FRAMES,
       g_param_spec_uint ("quant-i-frames", "I-Frame Quantization",
           "Quantization parameter for I-frames (0xffffffff=component default)",
@@ -254,6 +261,31 @@ gst_omx_video_enc_class_init (GstOMXVideoEncClass * klass)
           0, G_MAXUINT, GST_OMX_VIDEO_ENC_QUANT_B_FRAMES_DEFAULT,
           G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS |
           GST_PARAM_MUTABLE_READY));
+#else
+  g_object_class_install_property (gobject_class, PROP_QUANT_I_FRAMES,
+      g_param_spec_uint ("quant-i-frames", "I-Frame Quantization",
+          "Quantization parameter for I-frames, Used in CONST_QP mode,"
+	  "In other mode used as setting initial QP(30=component default)",
+          0, 51, GST_OMX_VIDEO_ENC_QUANT_I_FRAMES_DEFAULT,
+          G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS |
+          GST_PARAM_MUTABLE_READY));
+
+  g_object_class_install_property (gobject_class, PROP_QUANT_P_FRAMES,
+      g_param_spec_uint ("quant-p-frames", "P-Frame Quantization",
+          "Quantization parameter for P-frames, Used in CONST_QP mode,"
+	  "In other mode used as setting initial QP(30=component default)",
+          0, 51, GST_OMX_VIDEO_ENC_QUANT_P_FRAMES_DEFAULT,
+          G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS |
+          GST_PARAM_MUTABLE_READY));
+
+  g_object_class_install_property (gobject_class, PROP_QUANT_B_FRAMES,
+      g_param_spec_uint ("quant-b-frames", "B-Frame Quantization",
+          "Quantization parameter for B-frames, Used in CONST_QP mode,"
+	  "In other mode used as setting initial QP(30=component default)",
+          0, 51, GST_OMX_VIDEO_ENC_QUANT_B_FRAMES_DEFAULT,
+          G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS |
+          GST_PARAM_MUTABLE_READY));
+#endif
 
   g_object_class_install_property (gobject_class, PROP_STRIDE,
       g_param_spec_uint ("stride", "Value of stride",
@@ -572,9 +604,9 @@ gst_omx_video_enc_open (GstVideoEncoder * encoder)
       }
     }
 
-    if (self->quant_i_frames != 0xffffffff ||
-        self->quant_p_frames != 0xffffffff ||
-        self->quant_b_frames != 0xffffffff) {
+    if (self->quant_i_frames != GST_OMX_VIDEO_ENC_QUANT_I_FRAMES_DEFAULT ||
+        self->quant_p_frames != GST_OMX_VIDEO_ENC_QUANT_P_FRAMES_DEFAULT ||
+        self->quant_b_frames != GST_OMX_VIDEO_ENC_QUANT_B_FRAMES_DEFAULT) {
       OMX_VIDEO_PARAM_QUANTIZATIONTYPE quant_param;
 
       GST_OMX_INIT_STRUCT (&quant_param);
