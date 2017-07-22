@@ -184,8 +184,7 @@ enum
 #define GST_OMX_VIDEO_ENC_QUANT_B_FRAMES_DEFAULT (30)
 #endif
 #define GST_OMX_VIDEO_ENC_INPUT_MODE_DEFAULT (0xffffffff)
-#define GST_OMX_VIDEO_ENC_L2CACHE_DEFAULT (0)
-#define GST_OMX_VIDEO_ENC_L2CACHE_MAXSIZE (4096)
+#define GST_OMX_VIDEO_ENC_L2CACHE_DEFAULT (0xffffffff)
 #define GST_OMX_VIDEO_ENC_STRIDE_DEFAULT (1)
 #define GST_OMX_VIDEO_ENC_SLICEHEIGHT_DEFAULT (1)
 #define GST_OMX_VIDEO_ENC_QP_MODE_DEFAULT (0xffffffff) 
@@ -304,9 +303,9 @@ gst_omx_video_enc_class_init (GstOMXVideoEncClass * klass)
           GST_PARAM_MUTABLE_READY));
 
   g_object_class_install_property (gobject_class, PROP_L2CACHE,
-      g_param_spec_uint ("enc-buffer-size", "Value of L2Cache buffer size",
-          "Value of encoder L2Cache buffer size in KB (0x0=component default)",
-          0, GST_OMX_VIDEO_ENC_L2CACHE_MAXSIZE, GST_OMX_VIDEO_ENC_L2CACHE_DEFAULT,
+      g_param_spec_uint ("prefetch-buffer-size", "Value of L2Cache buffer size",
+          "Value of encoder L2Cache buffer size in KB (0xffffffff=component default)",
+          0, G_MAXUINT, GST_OMX_VIDEO_ENC_L2CACHE_DEFAULT,
           G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS |
           GST_PARAM_MUTABLE_READY));
 
@@ -459,6 +458,21 @@ set_zynqultrascaleplus_props (GstOMXVideoEnc * self)
         gst_omx_component_set_parameter (self->enc,
         (OMX_INDEXTYPE)OMX_ALG_IndexParamVideoQuantizationExtension, &qp_values);
     CHECK_ERR ("min-qp & max-qp");
+  }
+
+  if (self->l2cache != GST_OMX_VIDEO_ENC_L2CACHE_DEFAULT) {
+    OMX_ALG_VIDEO_PARAM_PREFETCH_BUFFER prefetch_buffer;
+
+    GST_OMX_INIT_STRUCT (&prefetch_buffer);
+    prefetch_buffer.nPortIndex = self->enc_out_port->index;
+    prefetch_buffer.nPrefetchBufferSize = self->l2cache;
+
+    GST_DEBUG_OBJECT (self, "setting prefetch buffer size %d", self->l2cache);
+
+    err =
+        gst_omx_component_set_parameter (self->enc,
+        (OMX_INDEXTYPE) OMX_ALG_IndexParamVideoPrefetchBuffer, &prefetch_buffer);
+    CHECK_ERR ("prefetch");
   }
 
   return TRUE;
