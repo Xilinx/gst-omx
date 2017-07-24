@@ -114,6 +114,48 @@ gst_omx_video_enc_qp_mode_get_type (void)
   return qtype;
 }
 
+#define GST_TYPE_OMX_VIDEO_ENC_GOP_MODE (gst_omx_video_enc_gop_mode_get_type ())
+static GType
+gst_omx_video_enc_gop_mode_get_type (void)
+{
+  static GType qtype = 0;
+
+  if (qtype == 0) {
+    static const GEnumValue values[] = {
+      {OMX_ALG_GOP_MODE_DEFAULT, "Basic GOP settings","default"},
+      {OMX_ALG_GOP_MODE_PYRAMIDAL,"Advanced Gop pattern with hierarchical B frame","pyramidal"},
+      {OMX_ALG_GOP_MODE_LOW_DELAY_P,"In this Gop pattern,single I-frame followed by P-frames only","low_delay_p"},
+      {OMX_ALG_GOP_MODE_LOW_DELAY_B,"In this Gop pattern,single I-frame followed by B-frames only ","low_delay_b"},
+      {0xffffffff, "Component Default", "default"},
+      {0, NULL, NULL}
+    };
+
+    qtype = g_enum_register_static ("GstOMXVideoEncGopMode", values);
+  }
+  return qtype;
+}
+
+#define GST_TYPE_OMX_VIDEO_ENC_GDR_MODE (gst_omx_video_enc_gdr_mode_get_type ())
+static GType
+gst_omx_video_enc_gdr_mode_get_type (void)
+{
+  static GType qtype = 0;
+
+  if (qtype == 0) {
+    static const GEnumValue values[] = {
+      {OMX_ALG_GDR_OFF, "No GDR","disable"},
+      {OMX_ALG_GDR_VERTICAL,"Gradual refresh using a vertical bar moving from left to right","vertical"},
+      {OMX_ALG_GDR_HORIZONTAL,"Gradual refresh using a horizontal bar moving from top to bottom","horizontal"},
+      {0xffffffff, "Component Default", "default"},
+      {0, NULL, NULL}
+    };
+
+    qtype = g_enum_register_static ("GstOMXVideoEncGdrMode", values);
+  }
+  return qtype;
+}
+
+
 #endif
 /* prototypes */
 static void gst_omx_video_enc_finalize (GObject * object);
@@ -167,7 +209,9 @@ enum
   PROP_QP_MODE,
   PROP_NUM_SLICES,
   PROP_MIN_QUANT,
-  PROP_MAX_QUANT
+  PROP_MAX_QUANT,
+  PROP_GOP_MODE,
+  PROP_GDR_MODE
 #endif
 };
 
@@ -191,6 +235,8 @@ enum
 #define GST_OMX_VIDEO_ENC_NUM_SLICES_DEFAULT (0xffffffff)
 #define GST_OMX_VIDEO_ENC_MIN_QP_DEFAULT (10)
 #define GST_OMX_VIDEO_ENC_MAX_QP_DEFAULT (51)
+#define GST_OMX_VIDEO_ENC_GOP_MODE_DEFAULT (0xffffffff) 
+#define GST_OMX_VIDEO_ENC_GDR_MODE_DEFAULT (0xffffffff) 
 
 /* class initialization */
 
@@ -345,6 +391,23 @@ gst_omx_video_enc_class_init (GstOMXVideoEncClass * klass)
           0, 51, GST_OMX_VIDEO_ENC_MAX_QP_DEFAULT,
           G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS |
           GST_PARAM_MUTABLE_READY));
+  
+  g_object_class_install_property (gobject_class, PROP_GOP_MODE,
+      g_param_spec_enum ("gop-mode", "GOP mode",
+          "Specifies the Group Of Pictures configuration mode",
+          GST_TYPE_OMX_VIDEO_ENC_GOP_MODE,
+          GST_OMX_VIDEO_ENC_GOP_MODE_DEFAULT,
+          G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS |
+          GST_PARAM_MUTABLE_READY));
+
+  g_object_class_install_property (gobject_class, PROP_GDR_MODE,
+      g_param_spec_enum ("gdr-mode", "GDR mode",
+          "Specifies which Gradual Decoder Refresh scheme should be used or not"
+	  "Only used if GopCtrlMode is set to LOW_DELAY_P", 
+          GST_TYPE_OMX_VIDEO_ENC_GDR_MODE,
+          GST_OMX_VIDEO_ENC_GDR_MODE_DEFAULT,
+          G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS |
+          GST_PARAM_MUTABLE_READY));
 
   element_class->change_state =
       GST_DEBUG_FUNCPTR (gst_omx_video_enc_change_state);
@@ -473,6 +536,33 @@ set_zynqultrascaleplus_props (GstOMXVideoEnc * self)
         gst_omx_component_set_parameter (self->enc,
         (OMX_INDEXTYPE) OMX_ALG_IndexParamVideoPrefetchBuffer, &prefetch_buffer);
     CHECK_ERR ("prefetch");
+  }
+
+  if (self->gop_mode != GST_OMX_VIDEO_ENC_GOP_MODE_DEFAULT ||
+	self->gdr_mode != GST_OMX_VIDEO_ENC_GDR_MODE_DEFAULT) {
+    OMX_ALG_VIDEO_PARAM_GOP_CONTROL gop_mode;
+
+    if(self->gdr_mode == OMX_ALG_GDR_VERTICAL ||
+	self->gdr_mode == OMX_ALG_GDR_HORIZONTAL) {
+	if(self->gop_mode != OMX_ALG_GOP_MODE_LOW_DELAY_P) {
+        	GST_ERROR_OBJECT (self,
+                	"GDR mode only can be set in LOW_DELAY_P gop\n");
+       	 	return FALSE;
+	}
+    }
+
+    GST_OMX_INIT_STRUCT (&gop_mode);
+    gop_mode.nPortIndex = self->enc_out_port->index;
+    gop_mode.eGopControlMode = self->gop_mode;
+    gop_mode.eGdrMode = self->gdr_mode;
+
+    GST_DEBUG_OBJECT (self, "setting GOP mode to %d and GDR mode to %d", 
+	self->gop_mode,self->gdr_mode);
+
+    err =
+        gst_omx_component_set_parameter (self->enc,
+        (OMX_INDEXTYPE) OMX_ALG_IndexParamVideoGopControl, &gop_mode);
+    CHECK_ERR ("GOP & GDR");
   }
 
   return TRUE;
@@ -787,6 +877,12 @@ gst_omx_video_enc_set_property (GObject * object, guint prop_id,
     case PROP_MAX_QUANT:
       self->max_qp = g_value_get_uint (value);
       break;
+    case PROP_GOP_MODE:
+      self->gop_mode = g_value_get_enum (value);
+      break;
+    case PROP_GDR_MODE:
+      self->gdr_mode = g_value_get_enum (value);
+      break;
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
       break;
@@ -838,6 +934,12 @@ gst_omx_video_enc_get_property (GObject * object, guint prop_id, GValue * value,
       break;
     case PROP_MAX_QUANT:
       g_value_set_uint (value, self->max_qp);
+      break;
+    case PROP_GOP_MODE:
+      g_value_set_enum (value, self->gop_mode);
+      break;
+    case PROP_GDR_MODE:
+      g_value_set_enum (value, self->gdr_mode);
       break;
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
