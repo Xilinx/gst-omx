@@ -53,6 +53,7 @@ struct _GstOMXH264Enc
   guint32 interval_intraframes;
   guint32 gop_length;
   guint32 b_frames;
+  guint32 entropy_mode;
 
   GList *headers;
 };

@@ -59,6 +59,7 @@ enum
   PROP_INTERVALOFCODINGINTRAFRAMES,
   PROP_GOP_LENGTH,
   PROP_B_FRAMES,
+  PROP_ENTROPY_MODE
 };
 
 #ifdef USE_OMX_TARGET_RPI
@@ -68,6 +69,7 @@ enum
 #define GST_OMX_H264_VIDEO_ENC_INTERVAL_OF_CODING_INTRA_FRAMES_DEFAULT (0xffffffff)
 #define GST_OMX_H264_ENC_GOP_LENGTH_DEFAULT (30)
 #define GST_OMX_H264_ENC_B_FRAMES_DEFAULT (0)
+#define GST_OMX_H264_ENC_ENTROPY_MODE_DEFAULT (0xffffffff)
 
 /* class initialization */
 
@@ -78,6 +80,27 @@ enum
 #define parent_class gst_omx_h264_enc_parent_class
 G_DEFINE_TYPE_WITH_CODE (GstOMXH264Enc, gst_omx_h264_enc,
     GST_TYPE_OMX_VIDEO_ENC, DEBUG_INIT);
+
+
+#define GST_TYPE_OMX_H264_ENC_ENTROPY_MODE (gst_omx_h264_enc_entropy_mode_get_type ())
+static GType
+gst_omx_h264_enc_entropy_mode_get_type (void)
+{
+  static GType qtype = 0;
+
+  if (qtype == 0) {
+    static const GEnumValue values[] = {
+      {FALSE, "CAVLC entropy mode","CAVLC"},
+      {TRUE,"CABAC entropy mode","CABAC"},
+      {0xffffffff, "Component Default", "default"},
+      {0, NULL, NULL}
+    };
+
+    qtype = g_enum_register_static ("GstOMXH264EncEntropyMode", values);
+  }
+  return qtype;
+}
+
 
 static gboolean
 gst_omx_h264_enc_open (GstVideoEncoder * encoder)
@@ -134,6 +157,9 @@ gst_omx_h264_enc_open (GstVideoEncoder * encoder)
           b_frames);
       avc_param.nBFrames = b_frames;
     }
+    if (self->entropy_mode != GST_OMX_H264_ENC_ENTROPY_MODE_DEFAULT) {
+	avc_param.bEntropyCodingCABAC = self->entropy_mode;	
+    }	
     err =
         gst_omx_component_set_parameter (omx_enc->enc,
         OMX_IndexParamVideoAvc, &avc_param);
@@ -215,6 +241,14 @@ gst_omx_h264_enc_class_init (GstOMXH264EncClass * klass)
           G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS |
           GST_PARAM_MUTABLE_READY));
 
+  g_object_class_install_property (gobject_class, PROP_ENTROPY_MODE,
+      g_param_spec_enum ("entropy-mode", "Entropy Mode",
+          "Specifies the entropy mode for encoding process",
+          GST_TYPE_OMX_H264_ENC_ENTROPY_MODE,
+          GST_OMX_H264_ENC_ENTROPY_MODE_DEFAULT,
+          G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS |
+          GST_PARAM_MUTABLE_READY));
+
   basevideoenc_class->open = gst_omx_h264_enc_open;
   basevideoenc_class->flush = gst_omx_h264_enc_flush;
   basevideoenc_class->stop = gst_omx_h264_enc_stop;
@@ -257,6 +291,9 @@ gst_omx_h264_enc_set_property (GObject * object, guint prop_id,
     case PROP_B_FRAMES:
       self->b_frames = g_value_get_uint (value);
       break;
+    case PROP_ENTROPY_MODE:
+      self->entropy_mode = g_value_get_enum (value);
+      break;
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
       break;
@@ -287,6 +324,9 @@ gst_omx_h264_enc_get_property (GObject * object, guint prop_id, GValue * value,
     case PROP_B_FRAMES:
       g_value_set_uint (value, self->b_frames);
       break;
+    case PROP_ENTROPY_MODE:
+      g_value_set_enum (value, self->entropy_mode);
+      break;
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
       break;
@@ -306,6 +346,7 @@ gst_omx_h264_enc_init (GstOMXH264Enc * self)
       GST_OMX_H264_VIDEO_ENC_INTERVAL_OF_CODING_INTRA_FRAMES_DEFAULT;
   self->gop_length = GST_OMX_H264_ENC_GOP_LENGTH_DEFAULT;
   self->b_frames = GST_OMX_H264_ENC_B_FRAMES_DEFAULT;
+  self->entropy_mode = GST_OMX_H264_ENC_ENTROPY_MODE_DEFAULT;
 }
 
 static gboolean
