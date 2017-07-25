@@ -211,7 +211,9 @@ enum
   PROP_MIN_QUANT,
   PROP_MAX_QUANT,
   PROP_GOP_MODE,
-  PROP_GDR_MODE
+  PROP_GDR_MODE,
+  PROP_INITIAL_DELAY,
+  PROP_CPB_SIZE
 #endif
 };
 
@@ -237,6 +239,9 @@ enum
 #define GST_OMX_VIDEO_ENC_MAX_QP_DEFAULT (51)
 #define GST_OMX_VIDEO_ENC_GOP_MODE_DEFAULT (0xffffffff) 
 #define GST_OMX_VIDEO_ENC_GDR_MODE_DEFAULT (0xffffffff) 
+#define GST_OMX_VIDEO_ENC_INITIAL_DELAY_DEFAULT (1500) 
+#define GST_OMX_VIDEO_ENC_CPB_SIZE_DEFAULT (3000)
+ 
 
 /* class initialization */
 
@@ -408,6 +413,22 @@ gst_omx_video_enc_class_init (GstOMXVideoEncClass * klass)
           GST_OMX_VIDEO_ENC_GDR_MODE_DEFAULT,
           G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS |
           GST_PARAM_MUTABLE_READY));
+  
+  g_object_class_install_property (gobject_class, PROP_INITIAL_DELAY,
+      g_param_spec_uint ("initial-delay", "value of initial-delay",
+          "Specifies the initial removal delay as specified in the HRD model in msec"
+	  "Not used when RateCtrlMode = CONST_QP (1500=component default)",
+          0, G_MAXUINT, GST_OMX_VIDEO_ENC_INITIAL_DELAY_DEFAULT,
+          G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS |
+          GST_PARAM_MUTABLE_READY));
+
+  g_object_class_install_property (gobject_class, PROP_CPB_SIZE,
+      g_param_spec_uint ("cpb-size", "value of cpb-size",
+          "Specifies the Coded Picture Buffer as specified in the HRD model in msec"
+	  "Not used when RateCtrlMode = CONST_QP (3000=component default)",
+          0, G_MAXUINT, GST_OMX_VIDEO_ENC_CPB_SIZE_DEFAULT,
+          G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS |
+          GST_PARAM_MUTABLE_READY));
 
   element_class->change_state =
       GST_DEBUG_FUNCPTR (gst_omx_video_enc_change_state);
@@ -451,6 +472,10 @@ gst_omx_video_enc_init (GstOMXVideoEnc * self)
   self->num_slices = GST_OMX_VIDEO_ENC_NUM_SLICES_DEFAULT;
   self->min_qp = GST_OMX_VIDEO_ENC_MIN_QP_DEFAULT;
   self->max_qp = GST_OMX_VIDEO_ENC_MAX_QP_DEFAULT;
+  self->gop_mode = GST_OMX_VIDEO_ENC_GOP_MODE_DEFAULT;
+  self->gdr_mode = GST_OMX_VIDEO_ENC_GDR_MODE_DEFAULT;
+  self->cpb_size = GST_OMX_VIDEO_ENC_CPB_SIZE_DEFAULT;
+  self->initial_delay = GST_OMX_VIDEO_ENC_INITIAL_DELAY_DEFAULT;
 #endif
 
   g_mutex_init (&self->drain_lock);
@@ -563,6 +588,24 @@ set_zynqultrascaleplus_props (GstOMXVideoEnc * self)
         gst_omx_component_set_parameter (self->enc,
         (OMX_INDEXTYPE) OMX_ALG_IndexParamVideoGopControl, &gop_mode);
     CHECK_ERR ("GOP & GDR");
+  }
+
+  if (self->cpb_size != GST_OMX_VIDEO_ENC_CPB_SIZE_DEFAULT || 
+	self->initial_delay != GST_OMX_VIDEO_ENC_INITIAL_DELAY_DEFAULT) {
+    OMX_ALG_VIDEO_PARAM_CODED_PICTURE_BUFFER cpb;
+
+    GST_OMX_INIT_STRUCT (&cpb);
+    cpb.nPortIndex = self->enc_out_port->index;
+    cpb.nCodedPictureBufferSize = self->cpb_size;
+    cpb.nInitialRemovalDelay = self->initial_delay;
+
+    GST_DEBUG_OBJECT (self, "setting cpb size as %d and initial delay as %d\n",
+	 self->cpb_size,self->initial_delay);
+
+    err =
+        gst_omx_component_set_parameter (self->enc,
+        (OMX_INDEXTYPE) OMX_ALG_IndexParamVideoCodedPictureBuffer, &cpb);
+    CHECK_ERR ("cpb size & initial delay");
   }
 
   return TRUE;
@@ -883,6 +926,12 @@ gst_omx_video_enc_set_property (GObject * object, guint prop_id,
     case PROP_GDR_MODE:
       self->gdr_mode = g_value_get_enum (value);
       break;
+    case PROP_INITIAL_DELAY:
+      self->initial_delay = g_value_get_uint (value);
+      break;
+    case PROP_CPB_SIZE:
+      self->cpb_size = g_value_get_uint (value);
+      break;
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
       break;
@@ -940,6 +989,12 @@ gst_omx_video_enc_get_property (GObject * object, guint prop_id, GValue * value,
       break;
     case PROP_GDR_MODE:
       g_value_set_enum (value, self->gdr_mode);
+      break;
+    case PROP_INITIAL_DELAY:
+      g_value_set_uint (value, self->initial_delay);
+      break;
+    case PROP_CPB_SIZE:
+      g_value_set_uint (value, self->cpb_size);
       break;
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);

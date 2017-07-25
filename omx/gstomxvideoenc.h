@@ -87,6 +87,8 @@ struct _GstOMXVideoEnc
   guint32 max_qp;
   guint32 gop_mode;
   guint32 gdr_mode;
+  guint32 initial_delay;
+  guint32 cpb_size;
 
   GList *buffer_list;
   gint g_dmalist_count;
