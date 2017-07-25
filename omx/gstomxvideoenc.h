@@ -89,6 +89,7 @@ struct _GstOMXVideoEnc
   guint32 gdr_mode;
   guint32 initial_delay;
   guint32 cpb_size;
+  guint32 scaling_list;
 
   GList *buffer_list;
   gint g_dmalist_count;

@@ -155,6 +155,25 @@ gst_omx_video_enc_gdr_mode_get_type (void)
   return qtype;
 }
 
+#define GST_TYPE_OMX_VIDEO_ENC_SCALING_LIST (gst_omx_video_enc_scaling_list_get_type ())
+static GType
+gst_omx_video_enc_scaling_list_get_type (void)
+{
+  static GType qtype = 0;
+
+  if (qtype == 0) {
+    static const GEnumValue values[] = {
+      {OMX_ALG_SCL_FLAT, "FLAT scaling list mode","flat"},
+      {OMX_ALG_SCL_DEFAULT,"Default scaling list mode","default"},
+      {0xffffffff, "Component Default", "default"},
+      {0, NULL, NULL}
+    };
+
+    qtype = g_enum_register_static ("GstOMXVideoEncScalingList", values);
+  }
+  return qtype;
+}
+
 
 #endif
 /* prototypes */
@@ -213,7 +232,8 @@ enum
   PROP_GOP_MODE,
   PROP_GDR_MODE,
   PROP_INITIAL_DELAY,
-  PROP_CPB_SIZE
+  PROP_CPB_SIZE,
+  PROP_SCALING_LIST
 #endif
 };
 
@@ -241,6 +261,7 @@ enum
 #define GST_OMX_VIDEO_ENC_GDR_MODE_DEFAULT (0xffffffff) 
 #define GST_OMX_VIDEO_ENC_INITIAL_DELAY_DEFAULT (1500) 
 #define GST_OMX_VIDEO_ENC_CPB_SIZE_DEFAULT (3000)
+#define GST_OMX_VIDEO_ENC_SCALING_LIST_DEFAULT (0xffffffff)
  
 
 /* class initialization */
@@ -429,6 +450,14 @@ gst_omx_video_enc_class_init (GstOMXVideoEncClass * klass)
           0, G_MAXUINT, GST_OMX_VIDEO_ENC_CPB_SIZE_DEFAULT,
           G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS |
           GST_PARAM_MUTABLE_READY));
+  
+  g_object_class_install_property (gobject_class, PROP_SCALING_LIST,
+      g_param_spec_enum ("scaling-list", "scaling list mode",
+          "specifies the scaling list mode",
+          GST_TYPE_OMX_VIDEO_ENC_SCALING_LIST,
+          GST_OMX_VIDEO_ENC_SCALING_LIST_DEFAULT,
+          G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS |
+          GST_PARAM_MUTABLE_READY));
 
   element_class->change_state =
       GST_DEBUG_FUNCPTR (gst_omx_video_enc_change_state);
@@ -476,6 +505,7 @@ gst_omx_video_enc_init (GstOMXVideoEnc * self)
   self->gdr_mode = GST_OMX_VIDEO_ENC_GDR_MODE_DEFAULT;
   self->cpb_size = GST_OMX_VIDEO_ENC_CPB_SIZE_DEFAULT;
   self->initial_delay = GST_OMX_VIDEO_ENC_INITIAL_DELAY_DEFAULT;
+  self->scaling_list = GST_OMX_VIDEO_ENC_SCALING_LIST_DEFAULT;
 #endif
 
   g_mutex_init (&self->drain_lock);
@@ -606,6 +636,22 @@ set_zynqultrascaleplus_props (GstOMXVideoEnc * self)
         gst_omx_component_set_parameter (self->enc,
         (OMX_INDEXTYPE) OMX_ALG_IndexParamVideoCodedPictureBuffer, &cpb);
     CHECK_ERR ("cpb size & initial delay");
+  }
+  
+  if (self->scaling_list != GST_OMX_VIDEO_ENC_SCALING_LIST_DEFAULT) {
+    OMX_ALG_VIDEO_PARAM_SCALING_LIST scaling_list;
+
+    GST_OMX_INIT_STRUCT (&scaling_list);
+    scaling_list.nPortIndex = self->enc_out_port->index;
+    scaling_list.eScalingListMode = self->scaling_list;
+
+    GST_DEBUG_OBJECT (self, "setting scaling list mode as %d \n",
+	 self->scaling_list);
+
+    err =
+        gst_omx_component_set_parameter (self->enc,
+        (OMX_INDEXTYPE) OMX_ALG_IndexParamVideoScalingList, &scaling_list);
+    CHECK_ERR ("scaling-list");
   }
 
   return TRUE;
@@ -932,6 +978,9 @@ gst_omx_video_enc_set_property (GObject * object, guint prop_id,
     case PROP_CPB_SIZE:
       self->cpb_size = g_value_get_uint (value);
       break;
+    case PROP_SCALING_LIST:
+      self->scaling_list = g_value_get_enum (value);
+      break;
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
       break;
@@ -995,6 +1044,9 @@ gst_omx_video_enc_get_property (GObject * object, guint prop_id, GValue * value,
       break;
     case PROP_CPB_SIZE:
       g_value_set_uint (value, self->cpb_size);
+      break;
+    case PROP_SCALING_LIST:
+      g_value_set_enum (value, self->scaling_list);
       break;
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
