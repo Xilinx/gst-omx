@@ -233,7 +233,8 @@ enum
   PROP_GDR_MODE,
   PROP_INITIAL_DELAY,
   PROP_CPB_SIZE,
-  PROP_SCALING_LIST
+  PROP_SCALING_LIST,
+  PROP_GOP_FREQ_IDR
 #endif
 };
 
@@ -262,6 +263,7 @@ enum
 #define GST_OMX_VIDEO_ENC_INITIAL_DELAY_DEFAULT (1500) 
 #define GST_OMX_VIDEO_ENC_CPB_SIZE_DEFAULT (3000)
 #define GST_OMX_VIDEO_ENC_SCALING_LIST_DEFAULT (0xffffffff)
+#define GST_OMX_VIDEO_ENC_GOP_FREQ_IDR_DEFAULT (0x7FFFFFF)
  
 
 /* class initialization */
@@ -458,6 +460,14 @@ gst_omx_video_enc_class_init (GstOMXVideoEncClass * klass)
           GST_OMX_VIDEO_ENC_SCALING_LIST_DEFAULT,
           G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS |
           GST_PARAM_MUTABLE_READY));
+  
+  g_object_class_install_property (gobject_class, PROP_GOP_FREQ_IDR,
+      g_param_spec_uint ("gop-freq-idr", "value of Gop-FreqIDR",
+          "Specifies the number of frames between consequtive IDR pictures,"
+	  "By default only the 1st frame is IDR (0x7FFFFFF=component default)",
+          1, G_MAXUINT, GST_OMX_VIDEO_ENC_GOP_FREQ_IDR_DEFAULT,
+          G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS |
+          GST_PARAM_MUTABLE_READY));
 
   element_class->change_state =
       GST_DEBUG_FUNCPTR (gst_omx_video_enc_change_state);
@@ -506,6 +516,7 @@ gst_omx_video_enc_init (GstOMXVideoEnc * self)
   self->cpb_size = GST_OMX_VIDEO_ENC_CPB_SIZE_DEFAULT;
   self->initial_delay = GST_OMX_VIDEO_ENC_INITIAL_DELAY_DEFAULT;
   self->scaling_list = GST_OMX_VIDEO_ENC_SCALING_LIST_DEFAULT;
+  self->gop_freq_idr = GST_OMX_VIDEO_ENC_GOP_FREQ_IDR_DEFAULT;
 #endif
 
   g_mutex_init (&self->drain_lock);
@@ -653,6 +664,23 @@ set_zynqultrascaleplus_props (GstOMXVideoEnc * self)
         (OMX_INDEXTYPE) OMX_ALG_IndexParamVideoScalingList, &scaling_list);
     CHECK_ERR ("scaling-list");
   }
+
+  if (self->gop_freq_idr != GST_OMX_VIDEO_ENC_GOP_FREQ_IDR_DEFAULT) {
+    OMX_ALG_VIDEO_PARAM_INSTANTANEOUS_DECODING_REFRESH gop_freq_idr;
+
+    GST_OMX_INIT_STRUCT (&gop_freq_idr);
+    gop_freq_idr.nPortIndex = self->enc_out_port->index;
+    gop_freq_idr.nInstantaneousDecodingRefreshFrequency = self->gop_freq_idr;
+
+    GST_DEBUG_OBJECT (self, "setting GopFreqIDR as %d \n",
+	 self->gop_freq_idr);
+
+    err =
+        gst_omx_component_set_parameter (self->enc,
+        (OMX_INDEXTYPE) OMX_ALG_IndexParamVideoInstantaneousDecodingRefresh, &gop_freq_idr);
+    CHECK_ERR ("GopFreqIDR");
+  }
+
 
   return TRUE;
 }
@@ -981,6 +1009,9 @@ gst_omx_video_enc_set_property (GObject * object, guint prop_id,
     case PROP_SCALING_LIST:
       self->scaling_list = g_value_get_enum (value);
       break;
+    case PROP_GOP_FREQ_IDR:
+      self->gop_freq_idr = g_value_get_uint (value);
+      break;
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
       break;
@@ -1047,6 +1078,9 @@ gst_omx_video_enc_get_property (GObject * object, guint prop_id, GValue * value,
       break;
     case PROP_SCALING_LIST:
       g_value_set_enum (value, self->scaling_list);
+      break;
+    case PROP_GOP_FREQ_IDR:
+      g_value_set_uint (value, self->gop_freq_idr);
       break;
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
