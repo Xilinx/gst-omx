@@ -235,7 +235,8 @@ enum
   PROP_CPB_SIZE,
   PROP_SCALING_LIST,
   PROP_GOP_FREQ_IDR,
-  PROP_LOW_BANDWIDTH
+  PROP_LOW_BANDWIDTH,
+  PROP_MAX_BITRATE
 #endif
 };
 
@@ -266,6 +267,7 @@ enum
 #define GST_OMX_VIDEO_ENC_SCALING_LIST_DEFAULT (0xffffffff)
 #define GST_OMX_VIDEO_ENC_GOP_FREQ_IDR_DEFAULT (0x7FFFFFF)
 #define GST_OMX_VIDEO_ENC_LOW_BANDWIDTH_DEFAULT (0xffffffff)
+#define GST_OMX_VIDEO_ENC_MAX_BITRATE_DEFAULT (0xffffffff)
  
 
 /* class initialization */
@@ -478,6 +480,14 @@ gst_omx_video_enc_class_init (GstOMXVideoEncClass * klass)
           GST_OMX_VIDEO_ENC_LOW_BANDWIDTH_DEFAULT,
           G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS |
           GST_PARAM_MUTABLE_READY));
+  
+  g_object_class_install_property (gobject_class, PROP_MAX_BITRATE,
+      g_param_spec_uint ("max-bitrate", "Max Bitrate in Kbps",
+          "Max bitrate in Kbps,(Set it to 0 to keep max-bitrate at same"
+	  "as target-bitrate) (0xffffffff=component default)",
+          0, G_MAXUINT, GST_OMX_VIDEO_ENC_MAX_BITRATE_DEFAULT,
+          G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS |
+          GST_PARAM_MUTABLE_PLAYING));
 
 
   element_class->change_state =
@@ -528,6 +538,7 @@ gst_omx_video_enc_init (GstOMXVideoEnc * self)
   self->initial_delay = GST_OMX_VIDEO_ENC_INITIAL_DELAY_DEFAULT;
   self->scaling_list = GST_OMX_VIDEO_ENC_SCALING_LIST_DEFAULT;
   self->gop_freq_idr = GST_OMX_VIDEO_ENC_GOP_FREQ_IDR_DEFAULT;
+  self->max_bitrate = GST_OMX_VIDEO_ENC_MAX_BITRATE_DEFAULT;
 #endif
 
   g_mutex_init (&self->drain_lock);
@@ -706,6 +717,22 @@ set_zynqultrascaleplus_props (GstOMXVideoEnc * self)
         gst_omx_component_set_parameter (self->enc,
         (OMX_INDEXTYPE) OMX_ALG_IndexParamVideoLowBandwidth, &self->low_bandwidth);
     CHECK_ERR ("low-bandwidth");
+  }
+
+  if (self->max_bitrate != GST_OMX_VIDEO_ENC_MAX_BITRATE_DEFAULT) {
+    OMX_ALG_VIDEO_PARAM_MAX_BITRATE max_bitrate;
+
+    GST_OMX_INIT_STRUCT (&max_bitrate);
+    max_bitrate.nPortIndex = self->enc_out_port->index;
+    max_bitrate.nMaxBitrate = self->max_bitrate;
+
+    GST_DEBUG_OBJECT (self, "setting Max bitrate as %d \n",
+	 self->max_bitrate);
+
+    err =
+        gst_omx_component_set_parameter (self->enc,
+        (OMX_INDEXTYPE) OMX_ALG_IndexParamVideoMaxBitrate, &self->max_bitrate);
+    CHECK_ERR ("max-bitrate");
   }
 
 
@@ -1042,6 +1069,9 @@ gst_omx_video_enc_set_property (GObject * object, guint prop_id,
     case PROP_LOW_BANDWIDTH:
       self->low_bandwidth = g_value_get_boolean (value);
       break;
+    case PROP_MAX_BITRATE:
+      self->max_bitrate = g_value_get_uint (value);
+      break;
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
       break;
@@ -1114,6 +1144,9 @@ gst_omx_video_enc_get_property (GObject * object, guint prop_id, GValue * value,
       break;
     case PROP_LOW_BANDWIDTH:
       g_value_set_boolean (value, self->low_bandwidth);
+      break;
+    case PROP_MAX_BITRATE:
+      g_value_set_uint (value, self->max_bitrate);
       break;
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
