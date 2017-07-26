@@ -93,6 +93,7 @@ struct _GstOMXVideoEnc
   guint32 gop_freq_idr;
   gboolean low_bandwidth;
   guint32 max_bitrate;
+  guint32 aspect_ratio;
 
   GList *buffer_list;
   gint g_dmalist_count;

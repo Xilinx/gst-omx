@@ -174,6 +174,28 @@ gst_omx_video_enc_scaling_list_get_type (void)
   return qtype;
 }
 
+#define GST_TYPE_OMX_VIDEO_ENC_ASPECT_RATIO (gst_omx_video_enc_aspect_ratio_get_type ())
+static GType
+gst_omx_video_enc_aspect_ratio_get_type (void)
+{
+  static GType qtype = 0;
+
+  if (qtype == 0) {
+    static const GEnumValue values[] = {
+      {OMX_ALG_ASPECT_RATIO_AUTO, "4:3 for SD video,16:9 for HD video,unspecified for unknown format","auto"},
+      {OMX_ALG_ASPECT_RATIO_4_3,"4:3 aspect ratio","aspect_ratio_4_3"},
+      {OMX_ALG_ASPECT_RATIO_16_9,"16:9 aspect ratio","aspect_ratio_16_9"},
+      {OMX_ALG_ASPECT_RATIO_NONE,"Aspect ratio information is not present in the stream","none"},
+      {0xffffffff, "Component Default", "default"},
+      {0, NULL, NULL}
+    };
+
+    qtype = g_enum_register_static ("GstOMXVideoEncAspectRatio", values);
+  }
+  return qtype;
+}
+
+
 
 #endif
 /* prototypes */
@@ -236,7 +258,8 @@ enum
   PROP_SCALING_LIST,
   PROP_GOP_FREQ_IDR,
   PROP_LOW_BANDWIDTH,
-  PROP_MAX_BITRATE
+  PROP_MAX_BITRATE,
+  PROP_ASPECT_RATIO
 #endif
 };
 
@@ -268,6 +291,7 @@ enum
 #define GST_OMX_VIDEO_ENC_GOP_FREQ_IDR_DEFAULT (0x7FFFFFF)
 #define GST_OMX_VIDEO_ENC_LOW_BANDWIDTH_DEFAULT (0xffffffff)
 #define GST_OMX_VIDEO_ENC_MAX_BITRATE_DEFAULT (0xffffffff)
+#define GST_OMX_VIDEO_ENC_ASPECT_RATIO_DEFAULT (0)
  
 
 /* class initialization */
@@ -489,6 +513,13 @@ gst_omx_video_enc_class_init (GstOMXVideoEncClass * klass)
           G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS |
           GST_PARAM_MUTABLE_PLAYING));
 
+  g_object_class_install_property (gobject_class, PROP_ASPECT_RATIO,
+      g_param_spec_enum ("aspect-ratio", "Aspect ratio",
+          "selects the display aspect ratio of the video sequence to be written in SPS/VUI",
+          GST_TYPE_OMX_VIDEO_ENC_ASPECT_RATIO,
+          GST_OMX_VIDEO_ENC_ASPECT_RATIO_DEFAULT,
+          G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS |
+          GST_PARAM_MUTABLE_READY));
 
   element_class->change_state =
       GST_DEBUG_FUNCPTR (gst_omx_video_enc_change_state);
@@ -539,6 +570,7 @@ gst_omx_video_enc_init (GstOMXVideoEnc * self)
   self->scaling_list = GST_OMX_VIDEO_ENC_SCALING_LIST_DEFAULT;
   self->gop_freq_idr = GST_OMX_VIDEO_ENC_GOP_FREQ_IDR_DEFAULT;
   self->max_bitrate = GST_OMX_VIDEO_ENC_MAX_BITRATE_DEFAULT;
+  self->aspect_ratio = GST_OMX_VIDEO_ENC_ASPECT_RATIO_DEFAULT;
 #endif
 
   g_mutex_init (&self->drain_lock);
@@ -735,6 +767,21 @@ set_zynqultrascaleplus_props (GstOMXVideoEnc * self)
     CHECK_ERR ("max-bitrate");
   }
 
+  if (self->aspect_ratio != GST_OMX_VIDEO_ENC_ASPECT_RATIO_DEFAULT) {
+    OMX_ALG_VIDEO_PARAM_ASPECT_RATIO aspect_ratio;
+
+    GST_OMX_INIT_STRUCT (&aspect_ratio);
+    aspect_ratio.nPortIndex = self->enc_out_port->index;
+    aspect_ratio.eAspectRatio = self->aspect_ratio;
+
+    GST_DEBUG_OBJECT (self, "setting Aspect Ratio as %d \n",
+	 self->aspect_ratio);
+
+    err =
+        gst_omx_component_set_parameter (self->enc,
+        (OMX_INDEXTYPE) OMX_ALG_IndexParamVideoAspectRatio, &self->aspect_ratio);
+    CHECK_ERR ("aspect-ratio");
+  }
 
   return TRUE;
 }
@@ -1072,6 +1119,9 @@ gst_omx_video_enc_set_property (GObject * object, guint prop_id,
     case PROP_MAX_BITRATE:
       self->max_bitrate = g_value_get_uint (value);
       break;
+    case PROP_ASPECT_RATIO:
+      self->aspect_ratio = g_value_get_enum (value);
+      break;
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
       break;
@@ -1147,6 +1197,9 @@ gst_omx_video_enc_get_property (GObject * object, guint prop_id, GValue * value,
       break;
     case PROP_MAX_BITRATE:
       g_value_set_uint (value, self->max_bitrate);
+      break;
+    case PROP_ASPECT_RATIO:
+      g_value_set_uint (value, self->aspect_ratio);
       break;
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
