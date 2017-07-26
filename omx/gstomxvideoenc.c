@@ -291,7 +291,7 @@ enum
 #define GST_OMX_VIDEO_ENC_GOP_FREQ_IDR_DEFAULT (0x7FFFFFF)
 #define GST_OMX_VIDEO_ENC_LOW_BANDWIDTH_DEFAULT (0xffffffff)
 #define GST_OMX_VIDEO_ENC_MAX_BITRATE_DEFAULT (0xffffffff)
-#define GST_OMX_VIDEO_ENC_ASPECT_RATIO_DEFAULT (0)
+#define GST_OMX_VIDEO_ENC_ASPECT_RATIO_DEFAULT (OMX_ALG_ASPECT_RATIO_AUTO)
  
 
 /* class initialization */
@@ -507,7 +507,7 @@ gst_omx_video_enc_class_init (GstOMXVideoEncClass * klass)
   
   g_object_class_install_property (gobject_class, PROP_MAX_BITRATE,
       g_param_spec_uint ("max-bitrate", "Max Bitrate in Kbps",
-          "Max bitrate in Kbps,(Set it to 0 to keep max-bitrate at same"
+          "Max bitrate in Kbps,(Set it to 0 to keep max-bitrate same "
 	  "as target-bitrate) (0xffffffff=component default)",
           0, G_MAXUINT, GST_OMX_VIDEO_ENC_MAX_BITRATE_DEFAULT,
           G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS |
@@ -747,7 +747,7 @@ set_zynqultrascaleplus_props (GstOMXVideoEnc * self)
 
     err =
         gst_omx_component_set_parameter (self->enc,
-        (OMX_INDEXTYPE) OMX_ALG_IndexParamVideoLowBandwidth, &self->low_bandwidth);
+        (OMX_INDEXTYPE) OMX_ALG_IndexParamVideoLowBandwidth, &low_bw);
     CHECK_ERR ("low-bandwidth");
   }
 
@@ -763,7 +763,7 @@ set_zynqultrascaleplus_props (GstOMXVideoEnc * self)
 
     err =
         gst_omx_component_set_parameter (self->enc,
-        (OMX_INDEXTYPE) OMX_ALG_IndexParamVideoMaxBitrate, &self->max_bitrate);
+        (OMX_INDEXTYPE) OMX_ALG_IndexParamVideoMaxBitrate, &max_bitrate);
     CHECK_ERR ("max-bitrate");
   }
 
@@ -779,7 +779,7 @@ set_zynqultrascaleplus_props (GstOMXVideoEnc * self)
 
     err =
         gst_omx_component_set_parameter (self->enc,
-        (OMX_INDEXTYPE) OMX_ALG_IndexParamVideoAspectRatio, &self->aspect_ratio);
+        (OMX_INDEXTYPE) OMX_ALG_IndexParamVideoAspectRatio, &aspect_ratio);
     CHECK_ERR ("aspect-ratio");
   }
 
@@ -1199,7 +1199,7 @@ gst_omx_video_enc_get_property (GObject * object, guint prop_id, GValue * value,
       g_value_set_uint (value, self->max_bitrate);
       break;
     case PROP_ASPECT_RATIO:
-      g_value_set_uint (value, self->aspect_ratio);
+      g_value_set_enum (value, self->aspect_ratio);
       break;
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
