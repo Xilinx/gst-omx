@@ -234,7 +234,8 @@ enum
   PROP_INITIAL_DELAY,
   PROP_CPB_SIZE,
   PROP_SCALING_LIST,
-  PROP_GOP_FREQ_IDR
+  PROP_GOP_FREQ_IDR,
+  PROP_LOW_BANDWIDTH
 #endif
 };
 
@@ -264,6 +265,7 @@ enum
 #define GST_OMX_VIDEO_ENC_CPB_SIZE_DEFAULT (3000)
 #define GST_OMX_VIDEO_ENC_SCALING_LIST_DEFAULT (0xffffffff)
 #define GST_OMX_VIDEO_ENC_GOP_FREQ_IDR_DEFAULT (0x7FFFFFF)
+#define GST_OMX_VIDEO_ENC_LOW_BANDWIDTH_DEFAULT (0xffffffff)
  
 
 /* class initialization */
@@ -468,6 +470,15 @@ gst_omx_video_enc_class_init (GstOMXVideoEncClass * klass)
           1, G_MAXUINT, GST_OMX_VIDEO_ENC_GOP_FREQ_IDR_DEFAULT,
           G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS |
           GST_PARAM_MUTABLE_READY));
+
+  g_object_class_install_property (gobject_class, PROP_LOW_BANDWIDTH,
+      g_param_spec_boolean ("low-bandwidth", "Enable low bandwidth mode",
+          "Enable low bandwith mode, It will decrease the vertical search range"
+	  "used for P-frame motion estimation to reduce the bandwith",
+          GST_OMX_VIDEO_ENC_LOW_BANDWIDTH_DEFAULT,
+          G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS |
+          GST_PARAM_MUTABLE_READY));
+
 
   element_class->change_state =
       GST_DEBUG_FUNCPTR (gst_omx_video_enc_change_state);
@@ -679,6 +690,22 @@ set_zynqultrascaleplus_props (GstOMXVideoEnc * self)
         gst_omx_component_set_parameter (self->enc,
         (OMX_INDEXTYPE) OMX_ALG_IndexParamVideoInstantaneousDecodingRefresh, &gop_freq_idr);
     CHECK_ERR ("GopFreqIDR");
+  }
+
+  if (self->low_bandwidth != GST_OMX_VIDEO_ENC_LOW_BANDWIDTH_DEFAULT) {
+    OMX_ALG_VIDEO_PARAM_LOW_BANDWIDTH low_bw;
+
+    GST_OMX_INIT_STRUCT (&low_bw);
+    low_bw.nPortIndex = self->enc_out_port->index;
+    low_bw.bEnableLowBandwidth = self->low_bandwidth;
+
+    GST_DEBUG_OBJECT (self, "setting LOW Bandwith mode as %d \n",
+	 self->low_bandwidth);
+
+    err =
+        gst_omx_component_set_parameter (self->enc,
+        (OMX_INDEXTYPE) OMX_ALG_IndexParamVideoLowBandwidth, &self->low_bandwidth);
+    CHECK_ERR ("low-bandwidth");
   }
 
 
@@ -1012,6 +1039,9 @@ gst_omx_video_enc_set_property (GObject * object, guint prop_id,
     case PROP_GOP_FREQ_IDR:
       self->gop_freq_idr = g_value_get_uint (value);
       break;
+    case PROP_LOW_BANDWIDTH:
+      self->low_bandwidth = g_value_get_boolean (value);
+      break;
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
       break;
@@ -1081,6 +1111,9 @@ gst_omx_video_enc_get_property (GObject * object, guint prop_id, GValue * value,
       break;
     case PROP_GOP_FREQ_IDR:
       g_value_set_uint (value, self->gop_freq_idr);
+      break;
+    case PROP_LOW_BANDWIDTH:
+      g_value_set_boolean (value, self->low_bandwidth);
       break;
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);

@@ -91,6 +91,7 @@ struct _GstOMXVideoEnc
   guint32 cpb_size;
   guint32 scaling_list;
   guint32 gop_freq_idr;
+  gboolean low_bandwidth;
 
   GList *buffer_list;
   gint g_dmalist_count;
