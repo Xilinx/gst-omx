@@ -46,13 +46,16 @@ enum
   PROP_GOP_LENGTH,
   PROP_B_FRAMES,
   PROP_SLICE_SIZE,
-  PROP_DEPENDENT_SLICE
+  PROP_DEPENDENT_SLICE,
+  PROP_INTRA_PREDICTION
 };
 
 #define GST_OMX_H265_ENC_GOP_LENGTH_DEFAULT (30)
 #define GST_OMX_H265_ENC_B_FRAMES_DEFAULT (0)
 #define GST_OMX_H265_ENC_SLICE_SIZE_DEFAULT (0)
 #define GST_OMX_H265_ENC_DEPENDENT_SLICE_DEFAULT (FALSE)
+#define GST_OMX_H265_ENC_INTRA_PREDICTION_DEFAULT (1)
+
 
 
 /* class initialization */
@@ -84,6 +87,9 @@ gst_omx_h265_enc_set_property (GObject * object, guint prop_id,
     case PROP_DEPENDENT_SLICE:
       self->dependent_slice = g_value_get_boolean (value);
       break;
+    case PROP_INTRA_PREDICTION:
+      self->intra_pred = g_value_get_boolean (value);
+      break;
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
       break;
@@ -108,6 +114,9 @@ gst_omx_h265_enc_get_property (GObject * object, guint prop_id, GValue * value,
       break;
     case PROP_DEPENDENT_SLICE:
       g_value_set_boolean (value, self->dependent_slice);
+      break;
+    case PROP_INTRA_PREDICTION:
+      g_value_set_boolean (value, self->intra_pred);
       break;
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
@@ -170,6 +179,9 @@ gst_omx_h265_enc_open (GstVideoEncoder * encoder)
       GST_LOG_OBJECT (self, "Changing number of B-Frame to %d",
           b_frames);
       hevc_param.nBFrames = b_frames;
+    }
+    if (self->intra_pred != GST_OMX_H265_ENC_INTRA_PREDICTION_DEFAULT) {
+       hevc_param.bConstIpred = self->intra_pred;
     }
     err =
         gst_omx_component_set_parameter (omx_enc->enc,
@@ -263,6 +275,14 @@ gst_omx_h265_enc_class_init (GstOMXH265EncClass * klass)
           "Dependent slice segments or regular slices (false=component default)",
 	  GST_OMX_H265_ENC_DEPENDENT_SLICE_DEFAULT, G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
 
+  g_object_class_install_property (gobject_class, PROP_INTRA_PREDICTION,
+      g_param_spec_boolean ("intra-pred",
+          "Constrained Intra Pred",
+          "Enable(true)/Disables(false) constrained_intra_pred_flag syntax element",
+          GST_OMX_H265_ENC_INTRA_PREDICTION_DEFAULT,
+          G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS |
+          GST_PARAM_MUTABLE_READY));
+
   basevideoenc_class->open = gst_omx_h265_enc_open;
 
   videoenc_class->cdata.default_src_template_caps = "video/x-h265, "
@@ -286,6 +306,7 @@ gst_omx_h265_enc_init (GstOMXH265Enc * self)
   self->b_frames = GST_OMX_H265_ENC_B_FRAMES_DEFAULT;
   self->slice_size = GST_OMX_H265_ENC_SLICE_SIZE_DEFAULT; 
   self->dependent_slice = GST_OMX_H265_ENC_DEPENDENT_SLICE_DEFAULT;	
+  self->intra_pred = GST_OMX_H265_ENC_INTRA_PREDICTION_DEFAULT;
 
   self->insert_sps_pps = TRUE;
 }
