@@ -55,6 +55,7 @@ struct _GstOMXH264Enc
   guint32 b_frames;
   guint32 entropy_mode;
   gboolean intra_pred;
+  guint32 loop_filter;
 
   GList *headers;
 };

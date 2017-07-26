@@ -60,7 +60,8 @@ enum
   PROP_GOP_LENGTH,
   PROP_B_FRAMES,
   PROP_ENTROPY_MODE,
-  PROP_INTRA_PREDICTION
+  PROP_INTRA_PREDICTION,
+  PROP_LOOP_FILTER
 };
 
 #ifdef USE_OMX_TARGET_RPI
@@ -72,6 +73,7 @@ enum
 #define GST_OMX_H264_ENC_B_FRAMES_DEFAULT (0)
 #define GST_OMX_H264_ENC_ENTROPY_MODE_DEFAULT (0xffffffff)
 #define GST_OMX_H264_ENC_INTRA_PREDICTION_DEFAULT (1)
+#define GST_OMX_H264_ENC_LOOP_FILTER_DEFAULT (0xffffffff)
 
 /* class initialization */
 
@@ -102,6 +104,27 @@ gst_omx_h264_enc_entropy_mode_get_type (void)
   }
   return qtype;
 }
+
+#define GST_TYPE_OMX_H264_ENC_LOOP_FILTER (gst_omx_h264_enc_loop_filter_get_type ())
+static GType
+gst_omx_h264_enc_loop_filter_get_type (void)
+{
+  static GType qtype = 0;
+
+  if (qtype == 0) {
+    static const GEnumValue values[] = {
+      {OMX_VIDEO_AVCLoopFilterEnable, "Enable deblocking filter","Enable"},
+      {OMX_VIDEO_AVCLoopFilterDisable,"Disable deblocking filter","Disable"},
+      {OMX_VIDEO_AVCLoopFilterDisableSliceBoundary,"Disable slice boundary in deblocking filter","DisableSliceBoundary"},
+      {0xffffffff, "Component Default", "default"},
+      {0, NULL, NULL}
+    };
+
+    qtype = g_enum_register_static ("GstOMXH264EncLoopFilter", values);
+  }
+  return qtype;
+}
+
 
 
 static gboolean
@@ -164,6 +187,9 @@ gst_omx_h264_enc_open (GstVideoEncoder * encoder)
     }	
     if (self->intra_pred != GST_OMX_H264_ENC_INTRA_PREDICTION_DEFAULT) {
 	avc_param.bconstIpred = self->intra_pred;	
+    }	
+    if (self->loop_filter != GST_OMX_H264_ENC_LOOP_FILTER_DEFAULT) {
+	avc_param.eLoopFilterMode = self->loop_filter;	
     }	
     err =
         gst_omx_component_set_parameter (omx_enc->enc,
@@ -261,6 +287,14 @@ gst_omx_h264_enc_class_init (GstOMXH264EncClass * klass)
           GST_OMX_H264_ENC_INTRA_PREDICTION_DEFAULT,
           G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS |
           GST_PARAM_MUTABLE_READY));
+  
+  g_object_class_install_property (gobject_class, PROP_LOOP_FILTER,
+      g_param_spec_enum ("loop-filter", "Loop Filter mode",
+          "enables/disables the deblocking filter",
+          GST_TYPE_OMX_H264_ENC_LOOP_FILTER,
+          GST_OMX_H264_ENC_LOOP_FILTER_DEFAULT,
+          G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS |
+          GST_PARAM_MUTABLE_READY));
 
   basevideoenc_class->open = gst_omx_h264_enc_open;
   basevideoenc_class->flush = gst_omx_h264_enc_flush;
@@ -310,6 +344,9 @@ gst_omx_h264_enc_set_property (GObject * object, guint prop_id,
     case PROP_INTRA_PREDICTION:
       self->intra_pred = g_value_get_boolean (value);
       break;
+    case PROP_LOOP_FILTER:
+      self->loop_filter = g_value_get_enum (value);
+      break;
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
       break;
@@ -346,6 +383,9 @@ gst_omx_h264_enc_get_property (GObject * object, guint prop_id, GValue * value,
     case PROP_INTRA_PREDICTION:
       g_value_set_boolean (value, self->intra_pred);
       break;
+    case PROP_LOOP_FILTER:
+      g_value_set_enum (value, self->loop_filter);
+      break;
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
       break;
@@ -367,6 +407,7 @@ gst_omx_h264_enc_init (GstOMXH264Enc * self)
   self->b_frames = GST_OMX_H264_ENC_B_FRAMES_DEFAULT;
   self->entropy_mode = GST_OMX_H264_ENC_ENTROPY_MODE_DEFAULT;
   self->intra_pred = GST_OMX_H264_ENC_INTRA_PREDICTION_DEFAULT;
+  self->loop_filter = GST_OMX_H264_ENC_LOOP_FILTER_DEFAULT;
 }
 
 static gboolean
