@@ -49,6 +49,7 @@ struct _GstOMXH265Enc
   guint32 slice_size;
   gboolean dependent_slice; 
   gboolean intra_pred;
+  guint32 loop_filter;
 };
 
 struct _GstOMXH265EncClass

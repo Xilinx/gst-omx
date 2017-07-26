@@ -47,7 +47,8 @@ enum
   PROP_B_FRAMES,
   PROP_SLICE_SIZE,
   PROP_DEPENDENT_SLICE,
-  PROP_INTRA_PREDICTION
+  PROP_INTRA_PREDICTION,
+  PROP_LOOP_FILTER
 };
 
 #define GST_OMX_H265_ENC_GOP_LENGTH_DEFAULT (30)
@@ -55,7 +56,7 @@ enum
 #define GST_OMX_H265_ENC_SLICE_SIZE_DEFAULT (0)
 #define GST_OMX_H265_ENC_DEPENDENT_SLICE_DEFAULT (FALSE)
 #define GST_OMX_H265_ENC_INTRA_PREDICTION_DEFAULT (1)
-
+#define GST_OMX_H265_ENC_LOOP_FILTER_DEFAULT (0xffffffff)
 
 
 /* class initialization */
@@ -67,6 +68,30 @@ enum
 #define parent_class gst_omx_h265_enc_parent_class
 G_DEFINE_TYPE_WITH_CODE (GstOMXH265Enc, gst_omx_h265_enc,
     GST_TYPE_OMX_VIDEO_ENC, DEBUG_INIT);
+
+#define GST_TYPE_OMX_H265_ENC_LOOP_FILTER (gst_omx_h265_enc_loop_filter_get_type ())
+static GType
+gst_omx_h265_enc_loop_filter_get_type (void)
+{
+  static GType qtype = 0;
+
+  if (qtype == 0) {
+    static const GEnumValue values[] = {
+      {OMX_ALG_VIDEO_HEVCLoopFilterEnable, "Enable deblocking filter","Enable"},
+      {OMX_ALG_VIDEO_HEVCLoopFilterDisable,"Disable deblocking filter","Disable"},
+      {OMX_ALG_VIDEO_HEVCLoopFilterDisableCrossSlice,"Disable Cross slice in deblocking filter","DisableCrossSlice"},
+      {OMX_ALG_VIDEO_HEVCLoopFilterDisableCrossTile,"Disable Cross tile in deblocking filter","DisableCrossTile"},
+      {OMX_ALG_VIDEO_HEVCLoopFilterDisableCrossSliceAndTile,"Disable slice & tile in deblocking filter","DisableSliceAndTile"},
+      {0xffffffff, "Component Default", "default"},
+      {0, NULL, NULL}
+    };
+
+    qtype = g_enum_register_static ("GstOMXH265EncLoopFilter", values);
+  }
+  return qtype;
+}
+
+
 
 static void
 gst_omx_h265_enc_set_property (GObject * object, guint prop_id,
@@ -89,6 +114,9 @@ gst_omx_h265_enc_set_property (GObject * object, guint prop_id,
       break;
     case PROP_INTRA_PREDICTION:
       self->intra_pred = g_value_get_boolean (value);
+      break;
+    case PROP_LOOP_FILTER:
+      self->loop_filter = g_value_get_enum (value);
       break;
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
@@ -117,6 +145,9 @@ gst_omx_h265_enc_get_property (GObject * object, guint prop_id, GValue * value,
       break;
     case PROP_INTRA_PREDICTION:
       g_value_set_boolean (value, self->intra_pred);
+      break;
+    case PROP_LOOP_FILTER:
+      g_value_set_enum (value, self->loop_filter);
       break;
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
@@ -183,6 +214,10 @@ gst_omx_h265_enc_open (GstVideoEncoder * encoder)
     if (self->intra_pred != GST_OMX_H265_ENC_INTRA_PREDICTION_DEFAULT) {
        hevc_param.bConstIpred = self->intra_pred;
     }
+    if (self->loop_filter != GST_OMX_H265_ENC_LOOP_FILTER_DEFAULT) {
+       hevc_param.eLoopFilterMode = self->loop_filter;
+    }
+
     err =
         gst_omx_component_set_parameter (omx_enc->enc,
         OMX_ALG_IndexParamVideoHevc, &hevc_param);
@@ -280,6 +315,14 @@ gst_omx_h265_enc_class_init (GstOMXH265EncClass * klass)
           "Constrained Intra Pred",
           "Enable(true)/Disables(false) constrained_intra_pred_flag syntax element",
           GST_OMX_H265_ENC_INTRA_PREDICTION_DEFAULT,
+          G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS |
+          GST_PARAM_MUTABLE_READY));
+
+  g_object_class_install_property (gobject_class, PROP_LOOP_FILTER,
+      g_param_spec_enum ("loop-filter", "Loop Filter mode",
+          "enables/disables the deblocking filter",
+          GST_TYPE_OMX_H265_ENC_LOOP_FILTER,
+          GST_OMX_H265_ENC_LOOP_FILTER_DEFAULT,
           G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS |
           GST_PARAM_MUTABLE_READY));
 
