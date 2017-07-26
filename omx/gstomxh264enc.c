@@ -59,7 +59,8 @@ enum
   PROP_INTERVALOFCODINGINTRAFRAMES,
   PROP_GOP_LENGTH,
   PROP_B_FRAMES,
-  PROP_ENTROPY_MODE
+  PROP_ENTROPY_MODE,
+  PROP_INTRA_PREDICTION
 };
 
 #ifdef USE_OMX_TARGET_RPI
@@ -70,6 +71,7 @@ enum
 #define GST_OMX_H264_ENC_GOP_LENGTH_DEFAULT (30)
 #define GST_OMX_H264_ENC_B_FRAMES_DEFAULT (0)
 #define GST_OMX_H264_ENC_ENTROPY_MODE_DEFAULT (0xffffffff)
+#define GST_OMX_H264_ENC_INTRA_PREDICTION_DEFAULT (1)
 
 /* class initialization */
 
@@ -160,6 +162,9 @@ gst_omx_h264_enc_open (GstVideoEncoder * encoder)
     if (self->entropy_mode != GST_OMX_H264_ENC_ENTROPY_MODE_DEFAULT) {
 	avc_param.bEntropyCodingCABAC = self->entropy_mode;	
     }	
+    if (self->intra_pred != GST_OMX_H264_ENC_INTRA_PREDICTION_DEFAULT) {
+	avc_param.bconstIpred = self->intra_pred;	
+    }	
     err =
         gst_omx_component_set_parameter (omx_enc->enc,
         OMX_IndexParamVideoAvc, &avc_param);
@@ -248,6 +253,14 @@ gst_omx_h264_enc_class_init (GstOMXH264EncClass * klass)
           GST_OMX_H264_ENC_ENTROPY_MODE_DEFAULT,
           G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS |
           GST_PARAM_MUTABLE_READY));
+  
+  g_object_class_install_property (gobject_class, PROP_INTRA_PREDICTION,
+      g_param_spec_boolean ("intra-pred",
+          "Constrained Intra Pred",
+          "Enable(true)/Disables(false) constrained_intra_pred_flag syntax element",
+          GST_OMX_H264_ENC_INTRA_PREDICTION_DEFAULT,
+          G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS |
+          GST_PARAM_MUTABLE_READY));
 
   basevideoenc_class->open = gst_omx_h264_enc_open;
   basevideoenc_class->flush = gst_omx_h264_enc_flush;
@@ -294,6 +307,9 @@ gst_omx_h264_enc_set_property (GObject * object, guint prop_id,
     case PROP_ENTROPY_MODE:
       self->entropy_mode = g_value_get_enum (value);
       break;
+    case PROP_INTRA_PREDICTION:
+      self->intra_pred = g_value_get_boolean (value);
+      break;
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
       break;
@@ -327,6 +343,9 @@ gst_omx_h264_enc_get_property (GObject * object, guint prop_id, GValue * value,
     case PROP_ENTROPY_MODE:
       g_value_set_enum (value, self->entropy_mode);
       break;
+    case PROP_INTRA_PREDICTION:
+      g_value_set_boolean (value, self->intra_pred);
+      break;
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
       break;
@@ -347,6 +366,7 @@ gst_omx_h264_enc_init (GstOMXH264Enc * self)
   self->gop_length = GST_OMX_H264_ENC_GOP_LENGTH_DEFAULT;
   self->b_frames = GST_OMX_H264_ENC_B_FRAMES_DEFAULT;
   self->entropy_mode = GST_OMX_H264_ENC_ENTROPY_MODE_DEFAULT;
+  self->intra_pred = GST_OMX_H264_ENC_INTRA_PREDICTION_DEFAULT;
 }
 
 static gboolean
