@@ -2047,6 +2047,7 @@ gst_omx_video_dec_negotiate (GstOMXVideoDec * self)
   return (err == OMX_ErrorNone);
 }
 
+#ifdef USE_OMX_TARGET_ZYNQ_USCALE_PLUS
 static guint
 get_latency_in_frames (GstOMXVideoDec * self)
 {
@@ -2103,6 +2104,7 @@ gst_omx_video_dec_set_latency (GstOMXVideoDec * self)
 out:
   gst_video_codec_state_unref (state);
 }
+#endif
 
 
 

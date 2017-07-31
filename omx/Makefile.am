@@ -11,10 +11,13 @@ THEORA_H_FILES=gstomxtheoradec.h
 endif
 
 if USE_OMX_TARGET_ZYNQ_USCALE_PLUS
-	$(H265_C_FILES)=gstomxh265enc.c
-	$(H265_C_FILES)=gstomxh265enc.c
-	$(H265DEC_H_FILES)=gstomxh265dec.h
-	$(H265DEC_H_FILES)=gstomxh265dec.h
+	$(H265_C_FILES)= \
+			gstomxh265enc.c \
+		        gstomxh265dec.c \
+		        gstomxh265utils.c \
+	$(H265_H_FILES)= \
+			gstomxh265enc.h \
+			gstomxh265utils.h
 endif
 
 libgstomx_la_SOURCES = \
@@ -35,9 +38,7 @@ libgstomx_la_SOURCES = \
 	$(VP8_C_FILES) \
 	$(THEORA_C_FILES) \
 	gstomxmpeg4videoenc.c \
-	gstomxh265enc.c \
-	gstomxh265dec.c \
-	gstomxh265utils.c \
+	$(H265_C_FILES) \
 	gstomxh264enc.c \
 	gstomxh263enc.c \
 	gstomxaacdec.c \
@@ -65,8 +66,7 @@ noinst_HEADERS = \
 	$(VP8_H_FILES) \
 	$(THEORA_H_FILES) \
 	gstomxmpeg4videoenc.h \
-	gstomxh265enc.h \
-	gstomxh265utils.h \
+	$(H265_H_FILES) \
 	gstomxh264enc.h \
 	gstomxh263enc.h \
 	gstomxaacdec.h \

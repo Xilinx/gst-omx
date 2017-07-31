@@ -1662,6 +1662,7 @@ gst_omx_video_enc_stop (GstVideoEncoder * encoder)
   return TRUE;
 }
 
+#ifdef USE_OMX_TARGET_ZYNQ_USCALE_PLUS
 static gint
 get_latency_in_frames (GstOMXVideoEnc * self)
 {
@@ -1718,6 +1719,7 @@ gst_omx_video_enc_set_latency (GstOMXVideoEnc * self)
 out:
   gst_video_codec_state_unref (state);
 }
+#endif
 
 static gboolean
 gst_omx_video_enc_set_format (GstVideoEncoder * encoder,
@@ -2015,7 +2017,9 @@ gst_omx_video_enc_set_format (GstVideoEncoder * encoder,
         (GstTaskFunction) gst_omx_video_enc_loop, encoder, NULL);
   }
 
+#ifdef USE_OMX_TARGET_ZYNQ_USCALE_PLUS
   gst_omx_video_enc_set_latency (self);
+#endif
 
   return TRUE;
 }
