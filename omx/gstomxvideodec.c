@@ -2065,9 +2065,9 @@ get_latency_in_frames (GstOMXVideoDec * self)
   }
 
   GST_LOG_OBJECT (self, "retrieved latency of %d buffers",
-      param.nBuffersLatency);
+      param.nLatency);
 
-  return param.nBuffersLatency;
+  return param.nLatency;
 }
 
 static void
