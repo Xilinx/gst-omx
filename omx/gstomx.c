@@ -616,6 +616,7 @@ EmptyBufferDone (OMX_HANDLETYPE hComponent, OMX_PTR pAppData,
   GST_LOG_OBJECT (comp->parent, "%s port %u emptied buffer %p (%p)",
       comp->name, buf->port->index, buf, buf->omx_buf->pBuffer);
 
+#ifdef USE_OMX_TARGET_ZYNQ_USCALE_PLUS
   if (!strcmp (comp->name, "encoder")) {
     self_enc = comp->parent;
     if (self_enc != NULL) {
@@ -637,6 +638,7 @@ EmptyBufferDone (OMX_HANDLETYPE hComponent, OMX_PTR pAppData,
       buf->input_buffer = NULL;
     }
   }
+#endif
   gst_omx_component_send_message (comp, msg);
 
   return OMX_ErrorNone;

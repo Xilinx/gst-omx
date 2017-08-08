@@ -231,8 +231,10 @@ static GstFlowReturn gst_omx_video_enc_drain (GstOMXVideoEnc * self,
 static GstFlowReturn gst_omx_video_enc_handle_output_frame (GstOMXVideoEnc *
     self, GstOMXPort * port, GstOMXBuffer * buf, GstVideoCodecFrame * frame);
 
+#ifdef USE_OMX_TARGET_ZYNQ_USCALE_PLUS
 static gboolean *gst_omx_video_enc_sink_event (GstVideoEncoder * encoder,
     GstEvent * event);
+#endif
 
 enum
 {
@@ -275,6 +277,7 @@ enum
 #define GST_OMX_VIDEO_ENC_QUANT_P_FRAMES_DEFAULT (30)
 #define GST_OMX_VIDEO_ENC_QUANT_B_FRAMES_DEFAULT (30)
 #endif
+#ifdef USE_OMX_TARGET_ZYNQ_USCALE_PLUS
 #define GST_OMX_VIDEO_ENC_INPUT_MODE_DEFAULT (0xffffffff)
 #define GST_OMX_VIDEO_ENC_L2CACHE_DEFAULT (0xffffffff)
 #define GST_OMX_VIDEO_ENC_STRIDE_DEFAULT (1)
@@ -292,6 +295,7 @@ enum
 #define GST_OMX_VIDEO_ENC_LOW_BANDWIDTH_DEFAULT (FALSE)
 #define GST_OMX_VIDEO_ENC_MAX_BITRATE_DEFAULT (0xffffffff)
 #define GST_OMX_VIDEO_ENC_ASPECT_RATIO_DEFAULT (OMX_ALG_ASPECT_RATIO_AUTO)
+#endif
  
 
 /* class initialization */
@@ -388,6 +392,7 @@ gst_omx_video_enc_class_init (GstOMXVideoEncClass * klass)
           GST_PARAM_MUTABLE_READY));
 #endif
 
+#ifdef USE_OMX_TARGET_ZYNQ_USCALE_PLUS
   g_object_class_install_property (gobject_class, PROP_STRIDE,
       g_param_spec_uint ("stride", "Value of stride",
           "Set it when input has alignment requirement in width (1=component default)",
@@ -520,6 +525,7 @@ gst_omx_video_enc_class_init (GstOMXVideoEncClass * klass)
           GST_OMX_VIDEO_ENC_ASPECT_RATIO_DEFAULT,
           G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS |
           GST_PARAM_MUTABLE_READY));
+#endif
 
   element_class->change_state =
       GST_DEBUG_FUNCPTR (gst_omx_video_enc_change_state);
@@ -538,8 +544,10 @@ gst_omx_video_enc_class_init (GstOMXVideoEncClass * klass)
       GST_DEBUG_FUNCPTR (gst_omx_video_enc_propose_allocation);
   video_encoder_class->getcaps = GST_DEBUG_FUNCPTR (gst_omx_video_enc_getcaps);
   sink_event_backup = video_encoder_class->sink_event;
+#ifdef USE_OMX_TARGET_ZYNQ_USCALE_PLUS
   video_encoder_class->sink_event =
       GST_DEBUG_FUNCPTR (gst_omx_video_enc_sink_event);
+#endif
 
   klass->cdata.type = GST_OMX_COMPONENT_TYPE_FILTER;
   klass->cdata.default_sink_template_caps = "video/x-raw, "
@@ -1068,6 +1076,7 @@ gst_omx_video_enc_set_property (GObject * object, guint prop_id,
     case PROP_QUANT_B_FRAMES:
       self->quant_b_frames = g_value_get_uint (value);
       break;
+#ifdef USE_OMX_TARGET_ZYNQ_USCALE_PLUS
     case PROP_STRIDE:
       self->stride = g_value_get_uint (value);
       break;
@@ -1122,6 +1131,7 @@ gst_omx_video_enc_set_property (GObject * object, guint prop_id,
     case PROP_ASPECT_RATIO:
       self->aspect_ratio = g_value_get_enum (value);
       break;
+#endif
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
       break;
@@ -1150,6 +1160,7 @@ gst_omx_video_enc_get_property (GObject * object, guint prop_id, GValue * value,
     case PROP_QUANT_B_FRAMES:
       g_value_set_uint (value, self->quant_b_frames);
       break;
+#ifdef USE_OMX_TARGET_ZYNQ_USCALE_PLUS
     case PROP_STRIDE:
       g_value_set_uint (value, self->stride);
       break;
@@ -1201,6 +1212,7 @@ gst_omx_video_enc_get_property (GObject * object, guint prop_id, GValue * value,
     case PROP_ASPECT_RATIO:
       g_value_set_enum (value, self->aspect_ratio);
       break;
+#endif
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
       break;
@@ -1818,9 +1830,11 @@ gst_omx_video_enc_set_format (GstVideoEncoder * encoder,
   }
 
   port_def.format.video.nFrameWidth = info->width;
+#ifdef USE_OMX_TARGET_ZYNQ_USCALE_PLUS
   if (self->stride) {
     port_def.nBufferAlignment = self->stride;
   }
+#endif
   if (port_def.nBufferAlignment)
     port_def.format.video.nStride =
         (info->width + port_def.nBufferAlignment - 1) &
@@ -1829,6 +1843,7 @@ gst_omx_video_enc_set_format (GstVideoEncoder * encoder,
     port_def.format.video.nStride = GST_ROUND_UP_4 (info->width);       /* safe (?) default */
 
   port_def.format.video.nFrameHeight = info->height;
+#ifdef USE_OMX_TARGET_ZYNQ_USCALE_PLUS
   if (self->sliceHeight) {
     port_def.format.video.nSliceHeight =
         (info->height + self->sliceHeight - 1) &
@@ -1836,6 +1851,9 @@ gst_omx_video_enc_set_format (GstVideoEncoder * encoder,
   } else {
     port_def.format.video.nSliceHeight = info->height;
   }
+#else
+    port_def.format.video.nSliceHeight = info->height;
+#endif
 
   switch (port_def.format.video.eColorFormat) {
     case OMX_COLOR_FormatYUV420Planar:
@@ -1944,7 +1962,7 @@ gst_omx_video_enc_set_format (GstVideoEncoder * encoder,
         return FALSE;
 
       /* Need to allocate buffers to reach Idle state */
-
+#ifdef USE_OMX_TARGET_ZYNQ_USCALE_PLUS
       if (self->input_mode == OMX_Enc_InputMode_DefaultImplementation) {
         if (gst_omx_port_allocate_buffers (self->enc_in_port) != OMX_ErrorNone)
           return FALSE;
@@ -1971,6 +1989,10 @@ gst_omx_video_enc_set_format (GstVideoEncoder * encoder,
         gst_buffer_unref (mem);
         g_list_free (self->buffer_list);
       }
+#else 
+      if (gst_omx_port_allocate_buffers (self->enc_in_port) != OMX_ErrorNone)
+        return FALSE;
+#endif
 
       if (gst_omx_port_allocate_buffers (self->enc_out_port) != OMX_ErrorNone)
         return FALSE;
@@ -1980,6 +2002,7 @@ gst_omx_video_enc_set_format (GstVideoEncoder * encoder,
             GST_CLOCK_TIME_NONE) != OMX_StateIdle)
       return FALSE;
 
+#ifdef USE_OMX_TARGET_ZYNQ_USCALE_PLUS
     if ((self->input_mode == OMX_Enc_InputMode_ZeroCopy) ||
         (self->input_mode == OMX_Enc_InputMode_DefaultImplementation)) {
       if (gst_omx_component_set_state (self->enc,
@@ -1990,6 +2013,15 @@ gst_omx_video_enc_set_format (GstVideoEncoder * encoder,
               GST_CLOCK_TIME_NONE) != OMX_StateExecuting)
         return FALSE;
     }
+#else
+    if (gst_omx_component_set_state (self->enc,
+            OMX_StateExecuting) != OMX_ErrorNone)
+      return FALSE;
+
+    if (gst_omx_component_get_state (self->enc,
+            GST_CLOCK_TIME_NONE) != OMX_StateExecuting)
+      return FALSE;
+#endif
 
   }
 
@@ -2008,6 +2040,7 @@ gst_omx_video_enc_set_format (GstVideoEncoder * encoder,
     gst_video_codec_state_unref (self->input_state);
   self->input_state = gst_video_codec_state_ref (state);
 
+#ifdef USE_OMX_TARGET_ZYNQ_USCALE_PLUS
   if ((self->input_mode == OMX_Enc_InputMode_ZeroCopy) ||
       (self->input_mode == OMX_Enc_InputMode_DefaultImplementation)) {
     /* Start the srcpad loop again */
@@ -2016,6 +2049,13 @@ gst_omx_video_enc_set_format (GstVideoEncoder * encoder,
     gst_pad_start_task (GST_VIDEO_ENCODER_SRC_PAD (self),
         (GstTaskFunction) gst_omx_video_enc_loop, encoder, NULL);
   }
+#else
+    /* Start the srcpad loop again */
+    GST_DEBUG_OBJECT (self, "Starting task again");
+    self->downstream_flow_ret = GST_FLOW_OK;
+    gst_pad_start_task (GST_VIDEO_ENCODER_SRC_PAD (self),
+        (GstTaskFunction) gst_omx_video_enc_loop, encoder, NULL);
+#endif
 
 #ifdef USE_OMX_TARGET_ZYNQ_USCALE_PLUS
   gst_omx_video_enc_set_latency (self);
@@ -2083,7 +2123,7 @@ gst_omx_video_enc_fill_buffer (GstOMXVideoEnc * self, GstBuffer * inbuf,
       outbuf->omx_buf->nAllocLen - outbuf->omx_buf->nOffset) {
     outbuf->omx_buf->nFilledLen = gst_buffer_get_size (inbuf);
 
-
+#ifdef USE_OMX_TARGET_ZYNQ_USCALE_PLUS
     if (self->input_mode == OMX_Enc_InputMode_DefaultImplementation) {
       gst_buffer_extract (inbuf, 0,
           outbuf->omx_buf->pBuffer + outbuf->omx_buf->nOffset,
@@ -2110,11 +2150,17 @@ gst_omx_video_enc_fill_buffer (GstOMXVideoEnc * self, GstBuffer * inbuf,
       gst_buffer_ref (inbuf);
       outbuf->input_buffer = inbuf;
     }
+#else
+      gst_buffer_extract (inbuf, 0,
+          outbuf->omx_buf->pBuffer + outbuf->omx_buf->nOffset,
+          outbuf->omx_buf->nFilledLen);
+#endif
 
     ret = TRUE;
     goto done;
   } else {
     /* Different strides */
+#ifdef USE_OMX_TARGET_ZYNQ_USCALE_PLUS
     if (self->input_mode == OMX_Enc_InputMode_DMABufImport) {
       outbuf->omx_buf->nFilledLen = gst_buffer_get_size (inbuf);
       GST_FIXME_OBJECT (self,
@@ -2134,7 +2180,9 @@ gst_omx_video_enc_fill_buffer (GstOMXVideoEnc * self, GstBuffer * inbuf,
       goto done;
     }
 
-    if (self->input_mode == OMX_Enc_InputMode_DefaultImplementation) {
+    if (self->input_mode == OMX_Enc_InputMode_DefaultImplementation)
+#endif 
+    {
       switch (info->finfo->format) {
         case GST_VIDEO_FORMAT_I420:{
           gint i, j, height, width;
@@ -2301,6 +2349,7 @@ gst_omx_video_enc_handle_frame (GstVideoEncoder * encoder,
   port = self->enc_in_port;
 
 
+#ifdef USE_OMX_TARGET_ZYNQ_USCALE_PLUS
   if (self->input_mode == OMX_Enc_InputMode_DMABufImport) {
     self->count++;
     if ((self->count == 1) && (self->bufpool_complete == 0)) {
@@ -2388,7 +2437,7 @@ gst_omx_video_enc_handle_frame (GstVideoEncoder * encoder,
           (GstTaskFunction) gst_omx_video_enc_loop, self, NULL);
     }
   }
-
+#endif
 
   while (acq_ret != GST_OMX_ACQUIRE_BUFFER_OK) {
     GstClockTime timestamp, duration;
@@ -2397,6 +2446,7 @@ gst_omx_video_enc_handle_frame (GstVideoEncoder * encoder,
      * _loop() can't call _finish_frame() and we might block forever
      * because no input buffers are released */
     GST_VIDEO_ENCODER_STREAM_UNLOCK (self);
+#ifdef USE_OMX_TARGET_ZYNQ_USCALE_PLUS
     if (self->input_mode == OMX_Enc_InputMode_DMABufImport) {
       acq_ret = gst_omx_port_acquire_buffer_dma (port, &buf,
           gst_dmabuf_memory_get_fd (gst_buffer_peek_memory (frame->input_buffer,
@@ -2404,6 +2454,9 @@ gst_omx_video_enc_handle_frame (GstVideoEncoder * encoder,
     } else {
       acq_ret = gst_omx_port_acquire_buffer (port, &buf);
     }
+#else
+      acq_ret = gst_omx_port_acquire_buffer (port, &buf);
+#endif
 
     if (acq_ret == GST_OMX_ACQUIRE_BUFFER_ERROR) {
       GST_VIDEO_ENCODER_STREAM_LOCK (self);
@@ -2671,6 +2724,7 @@ gst_omx_video_enc_drain (GstOMXVideoEnc * self, gboolean at_eos)
   return GST_FLOW_OK;
 }
 
+#ifdef USE_OMX_TARGET_ZYNQ_USCALE_PLUS
 static gboolean *
 gst_omx_video_enc_sink_event (GstVideoEncoder * encoder, GstEvent * event)
 {
@@ -2716,6 +2770,7 @@ gst_omx_video_enc_sink_event (GstVideoEncoder * encoder, GstEvent * event)
 
   return 0;
 }
+#endif
 
 static gboolean
 gst_omx_video_enc_propose_allocation (GstVideoEncoder * encoder,
