@@ -261,7 +261,8 @@ enum
   PROP_GOP_FREQ_IDR,
   PROP_LOW_BANDWIDTH,
   PROP_MAX_BITRATE,
-  PROP_ASPECT_RATIO
+  PROP_ASPECT_RATIO,
+  PROP_FILLER_DATA
 #endif
 };
 
@@ -295,6 +296,7 @@ enum
 #define GST_OMX_VIDEO_ENC_LOW_BANDWIDTH_DEFAULT (FALSE)
 #define GST_OMX_VIDEO_ENC_MAX_BITRATE_DEFAULT (0xffffffff)
 #define GST_OMX_VIDEO_ENC_ASPECT_RATIO_DEFAULT (OMX_ALG_ASPECT_RATIO_AUTO)
+#define GST_OMX_VIDEO_ENC_FILLER_DATA_DEFAULT (TRUE)
 #endif
  
 
@@ -525,6 +527,13 @@ gst_omx_video_enc_class_init (GstOMXVideoEncClass * klass)
           GST_OMX_VIDEO_ENC_ASPECT_RATIO_DEFAULT,
           G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS |
           GST_PARAM_MUTABLE_READY));
+
+  g_object_class_install_property (gobject_class, PROP_FILLER_DATA,
+      g_param_spec_boolean ("filler-data", "Control filler data",
+          "Enable/Disable filler data adding functanility",
+          GST_OMX_VIDEO_ENC_FILLER_DATA_DEFAULT,
+          G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS |
+          GST_PARAM_MUTABLE_READY));
 #endif
 
   element_class->change_state =
@@ -579,6 +588,7 @@ gst_omx_video_enc_init (GstOMXVideoEnc * self)
   self->gop_freq_idr = GST_OMX_VIDEO_ENC_GOP_FREQ_IDR_DEFAULT;
   self->max_bitrate = GST_OMX_VIDEO_ENC_MAX_BITRATE_DEFAULT;
   self->aspect_ratio = GST_OMX_VIDEO_ENC_ASPECT_RATIO_DEFAULT;
+  self->filler_data = GST_OMX_VIDEO_ENC_FILLER_DATA_DEFAULT;
 #endif
 
   g_mutex_init (&self->drain_lock);
@@ -789,6 +799,22 @@ set_zynqultrascaleplus_props (GstOMXVideoEnc * self)
         gst_omx_component_set_parameter (self->enc,
         (OMX_INDEXTYPE) OMX_ALG_IndexParamVideoAspectRatio, &aspect_ratio);
     CHECK_ERR ("aspect-ratio");
+  }
+
+  if (self->filler_data != GST_OMX_VIDEO_ENC_FILLER_DATA_DEFAULT) {
+    OMX_ALG_VIDEO_PARAM_FILLER_DATA filler_data;
+
+    GST_OMX_INIT_STRUCT (&filler_data);
+    filler_data.nPortIndex = self->enc_out_port->index;
+    filler_data.bDisableFillerData = !(self->filler_data);
+
+    GST_DEBUG_OBJECT (self, "setting Filler data mode as %d \n",
+        self->filler_data);
+
+    err =
+        gst_omx_component_set_parameter (self->enc,
+        (OMX_INDEXTYPE) OMX_ALG_IndexParamVideoFillerData, &filler_data);
+    CHECK_ERR ("filler-data");
   }
 
   return TRUE;
@@ -1131,6 +1157,9 @@ gst_omx_video_enc_set_property (GObject * object, guint prop_id,
     case PROP_ASPECT_RATIO:
       self->aspect_ratio = g_value_get_enum (value);
       break;
+    case PROP_FILLER_DATA:
+      self->filler_data = g_value_get_boolean (value);
+      break;
 #endif
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
@@ -1211,6 +1240,9 @@ gst_omx_video_enc_get_property (GObject * object, guint prop_id, GValue * value,
       break;
     case PROP_ASPECT_RATIO:
       g_value_set_enum (value, self->aspect_ratio);
+      break;
+    case PROP_FILLER_DATA:
+      g_value_set_boolean (value, self->filler_data);
       break;
 #endif
     default:
