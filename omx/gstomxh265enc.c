@@ -55,7 +55,7 @@ enum
 #define GST_OMX_H265_ENC_B_FRAMES_DEFAULT (0)
 #define GST_OMX_H265_ENC_SLICE_SIZE_DEFAULT (0)
 #define GST_OMX_H265_ENC_DEPENDENT_SLICE_DEFAULT (FALSE)
-#define GST_OMX_H265_ENC_INTRA_PREDICTION_DEFAULT (TRUE)
+#define GST_OMX_H265_ENC_INTRA_PREDICTION_DEFAULT (FALSE)
 #define GST_OMX_H265_ENC_LOOP_FILTER_DEFAULT (0xffffffff)
 
 
@@ -240,17 +240,53 @@ gst_omx_h265_enc_open (GstVideoEncoder * encoder)
         gst_omx_error_to_string (err), err);
   }
 
-  if (self->slice_size != GST_OMX_H265_ENC_SLICE_SIZE_DEFAULT ||
-      self->dependent_slice != GST_OMX_H265_ENC_DEPENDENT_SLICE_DEFAULT) {
+  if (self->slice_size != GST_OMX_H265_ENC_SLICE_SIZE_DEFAULT) { 
     OMX_ALG_VIDEO_PARAM_SLICES slices;
 
     GST_OMX_INIT_STRUCT (&slices);
     slices.nPortIndex = omx_enc->enc_out_port->index;
+
+    err = gst_omx_component_get_parameter (omx_enc->enc,
+        (OMX_INDEXTYPE) OMX_ALG_IndexParamVideoSlices, &slices);
+    if (err != OMX_ErrorNone) {
+      GST_ERROR_OBJECT (self,
+          "Failed to get HEVC parameters: %s (0x%08x)",
+          gst_omx_error_to_string (err), err);
+      return FALSE;
+    }
+
     slices.nSlicesSize = self->slice_size;
-    slices.bDependentSlices = self->dependent_slice;
-
     GST_DEBUG_OBJECT (self, "setting size of slices to %d", self->slice_size);
+    
+    err =
+        gst_omx_component_set_parameter (omx_enc->enc,
+        (OMX_INDEXTYPE) OMX_ALG_IndexParamVideoSlices, &slices);
+    if (err != OMX_ErrorNone) {
+      GST_ERROR_OBJECT (self,
+          "Failed to set HEVC parameters: %s (0x%08x)",
+          gst_omx_error_to_string (err), err);
+      return FALSE;
+    }
+  }
 
+  if (self->dependent_slice != GST_OMX_H265_ENC_DEPENDENT_SLICE_DEFAULT) { 
+    OMX_ALG_VIDEO_PARAM_SLICES slices;
+
+    GST_OMX_INIT_STRUCT (&slices);
+    slices.nPortIndex = omx_enc->enc_out_port->index;
+
+    err = gst_omx_component_get_parameter (omx_enc->enc,
+        (OMX_INDEXTYPE) OMX_ALG_IndexParamVideoSlices, &slices);
+    if (err != OMX_ErrorNone) {
+      GST_ERROR_OBJECT (self,
+          "Failed to get HEVC parameters: %s (0x%08x)",
+          gst_omx_error_to_string (err), err);
+      return FALSE;
+    }
+
+    slices.bDependentSlices = self->dependent_slice;
+    GST_DEBUG_OBJECT (self, "setting dependent slice flag to %d", self->dependent_slice);
+    
     err =
         gst_omx_component_set_parameter (omx_enc->enc,
         (OMX_INDEXTYPE) OMX_ALG_IndexParamVideoSlices, &slices);
@@ -282,7 +318,7 @@ gst_omx_h265_enc_class_init (GstOMXH265EncClass * klass)
   gobject_class->get_property = gst_omx_h265_enc_get_property;
 
   g_object_class_install_property (gobject_class, PROP_GOP_LENGTH,
-      g_param_spec_uint ("Gop-Length", "Number of all frames in 1 GOP, Must be in multiple of (b-frames+1)",
+      g_param_spec_uint ("gop-length", "Number of all frames in 1 GOP, Must be in multiple of (b-frames+1)",
           "Distance between two consecutive I frames(30=component default)",
           0, 1000, GST_OMX_H265_ENC_GOP_LENGTH_DEFAULT,
           G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS |
@@ -311,7 +347,7 @@ gst_omx_h265_enc_class_init (GstOMXH265EncClass * klass)
 	  GST_OMX_H265_ENC_DEPENDENT_SLICE_DEFAULT, G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
 
   g_object_class_install_property (gobject_class, PROP_INTRA_PREDICTION,
-      g_param_spec_boolean ("intra-pred",
+      g_param_spec_boolean ("constrained-intra-pred",
           "Constrained Intra Pred",
           "Enable(true)/Disables(false) constrained_intra_pred_flag syntax element",
           GST_OMX_H265_ENC_INTRA_PREDICTION_DEFAULT,

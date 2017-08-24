@@ -634,8 +634,17 @@ set_zynqultrascaleplus_props (GstOMXVideoEnc * self)
 
     GST_OMX_INIT_STRUCT (&slices);
     slices.nPortIndex = self->enc_out_port->index;
-    slices.nNumSlices = self->num_slices;
 
+    err = gst_omx_component_get_parameter (self->enc,
+        (OMX_INDEXTYPE) OMX_ALG_IndexParamVideoSlices, &slices);
+    if (err != OMX_ErrorNone) {
+      GST_ERROR_OBJECT (self,
+          "Failed to get HEVC parameters: %s (0x%08x)",
+          gst_omx_error_to_string (err), err);
+      return FALSE;
+    }
+
+    slices.nNumSlices = self->num_slices;
     GST_DEBUG_OBJECT (self, "setting number of slices to %d", self->num_slices);
 
     err =

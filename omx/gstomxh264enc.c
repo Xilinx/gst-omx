@@ -72,7 +72,7 @@ enum
 #define GST_OMX_H264_ENC_GOP_LENGTH_DEFAULT (30)
 #define GST_OMX_H264_ENC_B_FRAMES_DEFAULT (0)
 #define GST_OMX_H264_ENC_ENTROPY_MODE_DEFAULT (0xffffffff)
-#define GST_OMX_H264_ENC_INTRA_PREDICTION_DEFAULT (TRUE)
+#define GST_OMX_H264_ENC_INTRA_PREDICTION_DEFAULT (FALSE)
 #define GST_OMX_H264_ENC_LOOP_FILTER_DEFAULT (0xffffffff)
 
 /* class initialization */
@@ -259,7 +259,7 @@ gst_omx_h264_enc_class_init (GstOMXH264EncClass * klass)
           GST_PARAM_MUTABLE_READY));
 
   g_object_class_install_property (gobject_class, PROP_GOP_LENGTH,
-      g_param_spec_uint ("Gop-Length", "Number of all frames in 1 GOP, Must be in multiple of (b-frames+1)",
+      g_param_spec_uint ("gop-length", "Number of all frames in 1 GOP, Must be in multiple of (b-frames+1)",
           "Distance between two consecutive I frames(30=component default)",
           0, 1000, GST_OMX_H264_ENC_GOP_LENGTH_DEFAULT,
           G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS |
@@ -281,7 +281,7 @@ gst_omx_h264_enc_class_init (GstOMXH264EncClass * klass)
           GST_PARAM_MUTABLE_READY));
   
   g_object_class_install_property (gobject_class, PROP_INTRA_PREDICTION,
-      g_param_spec_boolean ("intra-pred",
+      g_param_spec_boolean ("constrained-intra-pred",
           "Constrained Intra Pred",
           "Enable(true)/Disables(false) constrained_intra_pred_flag syntax element",
           GST_OMX_H264_ENC_INTRA_PREDICTION_DEFAULT,
