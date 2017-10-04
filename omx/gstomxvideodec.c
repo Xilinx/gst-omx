@@ -2048,9 +2048,12 @@ gst_omx_video_dec_negotiate (GstOMXVideoDec * self)
 }
 
 #ifdef USE_OMX_TARGET_ZYNQ_USCALE_PLUS
-static guint
-get_latency_in_frames (GstOMXVideoDec * self)
+static void
+gst_omx_video_dec_set_latency (GstOMXVideoDec * self)
 {
+  GstVideoCodecState *state = gst_video_codec_state_ref (self->input_state);
+  GstVideoInfo *info = &state->info;
+  GstClockTime latency;
   OMX_ALG_PARAM_REPORTED_LATENCY param;
   OMX_ERRORTYPE err;
 
@@ -2064,40 +2067,14 @@ get_latency_in_frames (GstOMXVideoDec * self)
     return -1;
   }
 
-  GST_LOG_OBJECT (self, "retrieved latency of %d buffers",
+  GST_LOG_OBJECT (self, "retrieved latency of %d millisecond",
       param.nLatency);
 
-  return param.nLatency;
-}
-
-static void
-gst_omx_video_dec_set_latency (GstOMXVideoDec * self)
-{
-  GstVideoCodecState *state = gst_video_codec_state_ref (self->input_state);
-  GstVideoInfo *info = &state->info;
-  GstClockTime latency;
-  gint max_delayed_frames;
-
-  max_delayed_frames = get_latency_in_frames (self);
-  if (max_delayed_frames == -1) {
-    GST_WARNING_OBJECT (self, "cannot set decoder latency");
-    goto out;
-  }
-
-  if (info->fps_n) {
-    latency = gst_util_uint64_scale_ceil (GST_SECOND * info->fps_d,
-        max_delayed_frames, info->fps_n);
-  } else {
-    /* FIXME: Assume 25fps. This is better than reporting no latency at
-     * all and then later failing in live pipelines
-     */
-    latency = gst_util_uint64_scale_ceil (GST_SECOND * 1,
-        max_delayed_frames, 25);
-  }
+  /* Convert millisecond into GstClockTime */
+  latency = param.nLatency * GST_MSECOND;
 
   GST_INFO_OBJECT (self,
-      "Updating latency to %" GST_TIME_FORMAT " (%d frames)",
-      GST_TIME_ARGS (latency), max_delayed_frames);
+      "Updating latency to %" GST_TIME_FORMAT ,GST_TIME_ARGS (latency));
 
   gst_video_decoder_set_latency (GST_VIDEO_DECODER (self), latency, latency);
 
@@ -2395,7 +2372,9 @@ gst_omx_video_dec_set_format (GstVideoDecoder * decoder,
     return FALSE;
   }
 
+#ifdef USE_OMX_TARGET_ZYNQ_USCALE_PLUS
   gst_omx_video_dec_set_latency (self);
+#endif
 
   self->downstream_flow_ret = GST_FLOW_OK;
   return TRUE;

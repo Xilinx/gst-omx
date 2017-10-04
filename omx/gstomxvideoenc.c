@@ -1716,9 +1716,12 @@ gst_omx_video_enc_stop (GstVideoEncoder * encoder)
 }
 
 #ifdef USE_OMX_TARGET_ZYNQ_USCALE_PLUS
-static gint
-get_latency_in_frames (GstOMXVideoEnc * self)
+static void
+gst_omx_video_enc_set_latency (GstOMXVideoEnc * self)
 {
+  GstVideoCodecState *state = gst_video_codec_state_ref (self->input_state);
+  GstVideoInfo *info = &state->info;
+  GstClockTime latency;
   OMX_ALG_PARAM_REPORTED_LATENCY param;
   OMX_ERRORTYPE err;
 
@@ -1732,40 +1735,14 @@ get_latency_in_frames (GstOMXVideoEnc * self)
     return -1;
   }
 
-  GST_LOG_OBJECT (self, "retrieved latency of %d buffers",
+  GST_LOG_OBJECT (self, "retrieved latency of %d milisecond",
       param.nLatency);
 
-  return param.nLatency;
-}
-
-static void
-gst_omx_video_enc_set_latency (GstOMXVideoEnc * self)
-{
-  GstVideoCodecState *state = gst_video_codec_state_ref (self->input_state);
-  GstVideoInfo *info = &state->info;
-  GstClockTime latency;
-  gint max_delayed_frames;
-
-  max_delayed_frames = get_latency_in_frames (self);
-  if (max_delayed_frames == -1) {
-    GST_WARNING_OBJECT (self, "cannot set encoder latency");
-    goto out;
-  }
-
-  if (info->fps_n) {
-    latency = gst_util_uint64_scale_ceil (GST_SECOND * info->fps_d,
-        max_delayed_frames, info->fps_n);
-  } else {
-    /* FIXME: Assume 25fps. This is better than reporting no latency at
-     * all and then later failing in live pipelines
-     */
-    latency = gst_util_uint64_scale_ceil (GST_SECOND * 1,
-        max_delayed_frames, 25);
-  }
+  /* Convert millisecond into GstClockTime */
+  latency = param.nLatency * GST_MSECOND;
 
   GST_INFO_OBJECT (self,
-      "Updating latency to %" GST_TIME_FORMAT " (%d frames)",
-      GST_TIME_ARGS (latency), max_delayed_frames);
+      "Updating latency to %" GST_TIME_FORMAT ,GST_TIME_ARGS (latency));
 
   gst_video_encoder_set_latency (GST_VIDEO_ENCODER (self), latency, latency);
 
@@ -2817,14 +2794,35 @@ static gboolean
 gst_omx_video_enc_propose_allocation (GstVideoEncoder * encoder,
     GstQuery * query)
 {
+#ifdef USE_OMX_TARGET_ZYNQ_USCALE_PLUS
   GstOMXVideoEnc *self = GST_OMX_VIDEO_ENC (encoder);
   GstVideoCodecState *state = gst_video_codec_state_ref (self->input_state);
   GstVideoInfo *info = &state->info;
   gint num_buffers;
+  OMX_ALG_PARAM_REPORTED_LATENCY param;
+  OMX_ERRORTYPE err;
+#endif
 
   gst_query_add_allocation_meta (query, GST_VIDEO_META_API_TYPE, NULL);
 
-  num_buffers = get_latency_in_frames (self) + 1;
+#ifdef USE_OMX_TARGET_ZYNQ_USCALE_PLUS
+  GST_OMX_INIT_STRUCT (&param);
+  err = gst_omx_component_get_parameter (self->enc, OMX_ALG_IndexParamReportedLatency,
+      &param);
+
+  if (err != OMX_ErrorNone) {
+    GST_WARNING_OBJECT (self, "Couldn't retrieve latency: %s (0x%08x)",
+        gst_omx_error_to_string (err), err);
+    return -1;
+  }
+
+  /* Convert latency of millisecond into equivalent buffers */
+  if(info->fps_n) {
+       num_buffers = ((param.nLatency * info->fps_n) / (info->fps_d * 1000)) + 1;
+  } else {
+       num_buffers = ((param.nLatency * 25) / (1 * 1000)) + 1;
+  }
+
   if (num_buffers == -1) {
     GST_WARNING_OBJECT (self, "need latency to increase buffer pool");
     goto out;
@@ -2835,11 +2833,13 @@ gst_omx_video_enc_propose_allocation (GstVideoEncoder * encoder,
 
 out:
   gst_video_codec_state_unref (state);
+#endif
 
   return
       GST_VIDEO_ENCODER_CLASS
       (gst_omx_video_enc_parent_class)->propose_allocation (encoder, query);
 }
+
 
 static GstCaps *
 gst_omx_video_enc_getcaps (GstVideoEncoder * encoder, GstCaps * filter)
