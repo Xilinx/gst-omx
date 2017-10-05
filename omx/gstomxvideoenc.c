@@ -2796,50 +2796,24 @@ gst_omx_video_enc_propose_allocation (GstVideoEncoder * encoder,
 {
 #ifdef USE_OMX_TARGET_ZYNQ_USCALE_PLUS
   GstOMXVideoEnc *self = GST_OMX_VIDEO_ENC (encoder);
-  GstVideoCodecState *state = gst_video_codec_state_ref (self->input_state);
-  GstVideoInfo *info = &state->info;
-  gint num_buffers;
-  OMX_ALG_PARAM_REPORTED_LATENCY param;
-  OMX_ERRORTYPE err;
+  guint num_buffers;
+  gsize size = self->input_state->info.size;
 #endif
 
   gst_query_add_allocation_meta (query, GST_VIDEO_META_API_TYPE, NULL);
 
 #ifdef USE_OMX_TARGET_ZYNQ_USCALE_PLUS
-  GST_OMX_INIT_STRUCT (&param);
-  err = gst_omx_component_get_parameter (self->enc, OMX_ALG_IndexParamReportedLatency,
-      &param);
-
-  if (err != OMX_ErrorNone) {
-    GST_WARNING_OBJECT (self, "Couldn't retrieve latency: %s (0x%08x)",
-        gst_omx_error_to_string (err), err);
-    return -1;
-  }
-
-  /* Convert latency of millisecond into equivalent buffers */
-  if(info->fps_n) {
-       num_buffers = ((param.nLatency * info->fps_n) / (info->fps_d * 1000)) + 1;
-  } else {
-       num_buffers = ((param.nLatency * 25) / (1 * 1000)) + 1;
-  }
-
-  if (num_buffers == -1) {
-    GST_WARNING_OBJECT (self, "need latency to increase buffer pool");
-    goto out;
-  }
-
-  GST_DEBUG_OBJECT (self, "request at least %d buffers", num_buffers);
-  gst_query_add_allocation_pool (query, NULL, info->size, num_buffers, 0);
-
-out:
-  gst_video_codec_state_unref (state);
+  num_buffers = self->enc_in_port->port_def.nBufferCountMin + 1;
+  GST_DEBUG_OBJECT (self,
+      "request at least %d buffers of size %" G_GSIZE_FORMAT, num_buffers,
+      size);
+  gst_query_add_allocation_pool (query, NULL, size, num_buffers, 0);
 #endif
 
   return
       GST_VIDEO_ENCODER_CLASS
       (gst_omx_video_enc_parent_class)->propose_allocation (encoder, query);
 }
-
 
 static GstCaps *
 gst_omx_video_enc_getcaps (GstVideoEncoder * encoder, GstCaps * filter)
