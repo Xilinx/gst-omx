@@ -95,6 +95,7 @@ struct _GstOMXVideoEnc
   guint32 max_bitrate;
   guint32 aspect_ratio;
   gboolean filler_data;
+  guint32 latency_mode;
 
   GList *buffer_list;
   gint g_dmalist_count;

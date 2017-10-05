@@ -157,6 +157,7 @@ gst_omx_dec_op_mode_get_type (void)
 
 
 #define GST_TYPE_OMX_VIDEO_DEC_LATENCY_MODE (gst_omx_video_dec_latency_mode_get_type ())
+#define OMX_ALG_LOW_LATENCY (OMX_ALG_DPB_LOW_REF+1)
 static GType
 gst_omx_video_dec_latency_mode_get_type ()
 {
@@ -165,7 +166,9 @@ gst_omx_video_dec_latency_mode_get_type ()
   if (qtype == 0) {
     static const GEnumValue values[] = {
       {OMX_ALG_DPB_NORMAL, "Normal mode", "normal"},
-      {OMX_ALG_DPB_LOW_REF, "Low latency mode", "low-latency"},
+      {OMX_ALG_DPB_LOW_REF, "Low ref dpb mode(reduced-latency)", "reduced-latency"},
+      {OMX_ALG_LOW_LATENCY, "Low latency mode", "low-latency"},
+
       {0xffffffff, "Component Default", "default"},
       {0, NULL, NULL}
     };
@@ -306,25 +309,73 @@ set_zynqultrascaleplus_props (GstOMXVideoDec * self)
 
   if (self->latency_mode != GST_OMX_VIDEO_DEC_LATENCY_MODE_DEFAULT) {
     OMX_ALG_VIDEO_PARAM_DECODED_PICTURE_BUFFER picture_buffer;
-
+    OMX_ALG_VIDEO_PARAM_SUBFRAME subframe_mode;
     GST_OMX_INIT_STRUCT (&picture_buffer);
-    picture_buffer.nPortIndex = self->dec_in_port->index;
-    picture_buffer.eDecodedPictureBufferMode = self->latency_mode;
-    picture_buffer.nSize = sizeof (picture_buffer);
-    picture_buffer.nVersion.s.nVersionMajor = OMX_VERSION_MAJOR;
-    picture_buffer.nVersion.s.nVersionMinor = OMX_VERSION_MINOR;
-    picture_buffer.nVersion.s.nRevision = OMX_VERSION_REVISION;
-    picture_buffer.nVersion.s.nStep = OMX_VERSION_STEP;
+    GST_OMX_INIT_STRUCT (&subframe_mode);
 
+    /* Handle Normal mode or reduced latency mode */
+    if(self->latency_mode != OMX_ALG_LOW_LATENCY) {
+      picture_buffer.nPortIndex = self->dec_in_port->index;
+      picture_buffer.eDecodedPictureBufferMode = self->latency_mode;
+      picture_buffer.nSize = sizeof (picture_buffer);
+      picture_buffer.nVersion.s.nVersionMajor = OMX_VERSION_MAJOR;
+      picture_buffer.nVersion.s.nVersionMinor = OMX_VERSION_MINOR;
+      picture_buffer.nVersion.s.nRevision = OMX_VERSION_REVISION;
+      picture_buffer.nVersion.s.nStep = OMX_VERSION_STEP;
 
-    GST_DEBUG_OBJECT (self, "setting decoded picture buffer mode to %d",
-        self->latency_mode);
+      GST_DEBUG_OBJECT (self, "setting decoded picture buffer mode to %d",
+          self->latency_mode);
 
-    err =
-        gst_omx_component_set_parameter (self->dec,
-        (OMX_INDEXTYPE) OMX_ALG_IndexParamVideoDecodedPictureBuffer,
-        &picture_buffer);
-    CHECK_ERR ("decodec picture buffer");
+      err =
+          gst_omx_component_set_parameter (self->dec,
+          (OMX_INDEXTYPE) OMX_ALG_IndexParamVideoDecodedPictureBuffer,
+          &picture_buffer);
+      CHECK_ERR ("decodec picture buffer");
+
+      subframe_mode.nPortIndex = self->dec_in_port->index;
+      subframe_mode.bEnableSubframe = FALSE;
+
+      GST_DEBUG_OBJECT (self, "setting sub frame mode to %d",
+          subframe_mode.bEnableSubframe);
+
+      err =
+          gst_omx_component_set_parameter (self->dec,
+          (OMX_INDEXTYPE) OMX_ALG_IndexParamVideoSubframe,
+          &subframe_mode);
+      CHECK_ERR ("sub frame mode");
+
+    } else {
+    /* Handle low latency mode */
+      picture_buffer.nPortIndex = self->dec_in_port->index;
+      picture_buffer.eDecodedPictureBufferMode = OMX_ALG_DPB_LOW_REF;
+      picture_buffer.nSize = sizeof (picture_buffer);
+      picture_buffer.nVersion.s.nVersionMajor = OMX_VERSION_MAJOR;
+      picture_buffer.nVersion.s.nVersionMinor = OMX_VERSION_MINOR;
+      picture_buffer.nVersion.s.nRevision = OMX_VERSION_REVISION;
+      picture_buffer.nVersion.s.nStep = OMX_VERSION_STEP;
+
+      GST_DEBUG_OBJECT (self, "setting decoded picture buffer mode to %d",
+          picture_buffer.eDecodedPictureBufferMode);
+
+      err =
+          gst_omx_component_set_parameter (self->dec,
+          (OMX_INDEXTYPE) OMX_ALG_IndexParamVideoDecodedPictureBuffer,
+          &picture_buffer);
+      CHECK_ERR ("decodec picture buffer");
+
+      subframe_mode.nPortIndex = self->dec_in_port->index;
+      subframe_mode.bEnableSubframe = TRUE;
+
+      GST_DEBUG_OBJECT (self, "setting sub frame mode to %d",
+          subframe_mode.bEnableSubframe);
+
+      err =
+          gst_omx_component_set_parameter (self->dec,
+          (OMX_INDEXTYPE) OMX_ALG_IndexParamVideoSubframe,
+          &subframe_mode);
+      CHECK_ERR ("sub frame mode");
+
+    }
   }
 
   return TRUE;

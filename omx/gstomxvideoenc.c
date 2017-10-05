@@ -195,7 +195,24 @@ gst_omx_video_enc_aspect_ratio_get_type (void)
   return qtype;
 }
 
+#define GST_TYPE_OMX_VIDEO_ENC_LATENCY_MODE (gst_omx_video_enc_latency_mode_get_type ())
+static GType
+gst_omx_video_enc_latency_mode_get_type ()
+{
+  static GType qtype = 0;
 
+  if (qtype == 0) {
+    static const GEnumValue values[] = {
+      {FALSE, "Normal mode", "normal"},
+      {TRUE, "Low latency mode", "low-latency"},
+      {0xffffffff, "Component Default", "default"},
+      {0, NULL, NULL}
+    };
+
+    qtype = g_enum_register_static ("GstOMXVideoEncLatencyMode", values);
+  }
+  return qtype;
+}
 
 #endif
 /* prototypes */
@@ -262,7 +279,8 @@ enum
   PROP_LOW_BANDWIDTH,
   PROP_MAX_BITRATE,
   PROP_ASPECT_RATIO,
-  PROP_FILLER_DATA
+  PROP_FILLER_DATA,
+  PROP_LATENCY_MODE
 #endif
 };
 
@@ -297,6 +315,7 @@ enum
 #define GST_OMX_VIDEO_ENC_MAX_BITRATE_DEFAULT (0xffffffff)
 #define GST_OMX_VIDEO_ENC_ASPECT_RATIO_DEFAULT (OMX_ALG_ASPECT_RATIO_AUTO)
 #define GST_OMX_VIDEO_ENC_FILLER_DATA_DEFAULT (TRUE)
+#define GST_OMX_VIDEO_ENC_LATENCY_MODE_DEFAULT (0xffffffff)
 #endif
  
 
@@ -534,6 +553,13 @@ gst_omx_video_enc_class_init (GstOMXVideoEncClass * klass)
           GST_OMX_VIDEO_ENC_FILLER_DATA_DEFAULT,
           G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS |
           GST_PARAM_MUTABLE_READY));
+
+  g_object_class_install_property (gobject_class, PROP_LATENCY_MODE,
+      g_param_spec_enum ("latency-mode", "latency mode",
+          "Encoder latency mode",
+          GST_TYPE_OMX_VIDEO_ENC_LATENCY_MODE,
+          GST_OMX_VIDEO_ENC_LATENCY_MODE_DEFAULT,
+          G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
 #endif
 
   element_class->change_state =
@@ -589,6 +615,7 @@ gst_omx_video_enc_init (GstOMXVideoEnc * self)
   self->max_bitrate = GST_OMX_VIDEO_ENC_MAX_BITRATE_DEFAULT;
   self->aspect_ratio = GST_OMX_VIDEO_ENC_ASPECT_RATIO_DEFAULT;
   self->filler_data = GST_OMX_VIDEO_ENC_FILLER_DATA_DEFAULT;
+  self->latency_mode = GST_OMX_VIDEO_ENC_LATENCY_MODE_DEFAULT;
 #endif
 
   g_mutex_init (&self->drain_lock);
@@ -824,6 +851,22 @@ set_zynqultrascaleplus_props (GstOMXVideoEnc * self)
         gst_omx_component_set_parameter (self->enc,
         (OMX_INDEXTYPE) OMX_ALG_IndexParamVideoFillerData, &filler_data);
     CHECK_ERR ("filler-data");
+  }
+
+  if (self->latency_mode != GST_OMX_VIDEO_ENC_LATENCY_MODE_DEFAULT) {
+    OMX_ALG_VIDEO_PARAM_SUBFRAME subframe_mode;
+    GST_OMX_INIT_STRUCT (&subframe_mode);
+    subframe_mode.nPortIndex = self->enc_out_port->index;
+    subframe_mode.bEnableSubframe = self->latency_mode;
+
+    GST_DEBUG_OBJECT (self, "setting latency mode to %d",
+          self->latency_mode);
+
+    err =
+        gst_omx_component_set_parameter (self->enc,
+        (OMX_INDEXTYPE) OMX_ALG_IndexParamVideoSubframe,
+        &subframe_mode);
+    CHECK_ERR ("latency mode");
   }
 
   return TRUE;
@@ -1179,6 +1222,9 @@ gst_omx_video_enc_set_property (GObject * object, guint prop_id,
     case PROP_FILLER_DATA:
       self->filler_data = g_value_get_boolean (value);
       break;
+    case PROP_LATENCY_MODE:
+      self->latency_mode = g_value_get_enum (value);
+      break;
 #endif
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
@@ -1262,6 +1308,9 @@ gst_omx_video_enc_get_property (GObject * object, guint prop_id, GValue * value,
       break;
     case PROP_FILLER_DATA:
       g_value_set_boolean (value, self->filler_data);
+      break;
+    case PROP_LATENCY_MODE:
+      g_value_set_enum (value, self->latency_mode);
       break;
 #endif
     default:
