@@ -344,7 +344,7 @@ gst_omx_video_enc_class_init (GstOMXVideoEncClass * klass)
           "Target bitrate in Kbps (0xffffffff=component default)",
           0, G_MAXUINT, GST_OMX_VIDEO_ENC_TARGET_BITRATE_DEFAULT,
           G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS |
-          GST_PARAM_MUTABLE_PLAYING));
+          GST_PARAM_MUTABLE_READY));
 #endif
 
 #ifndef USE_OMX_TARGET_ZYNQ_USCALE_PLUS
