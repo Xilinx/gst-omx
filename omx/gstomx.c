@@ -215,6 +215,15 @@ gst_omx_component_flush_messages (GstOMXComponent * comp)
   g_mutex_unlock (&comp->messages_lock);
 }
 
+static void
+gst_omx_buffer_reset (GstOMXBuffer * buf)
+{
+  buf->omx_buf->nFlags = 0;
+  buf->omx_buf->nOffset = 0;
+  buf->omx_buf->nFilledLen = 0;
+  buf->omx_buf->nTimeStamp = 0;
+}
+
 /* NOTE: Call with comp->lock, comp->messages_lock will be used */
 static void
 gst_omx_component_handle_messages (GstOMXComponent * comp)
@@ -361,15 +370,11 @@ gst_omx_component_handle_messages (GstOMXComponent * comp)
               "%s port %u emptied buffer %p (%p)", port->comp->name,
               port->index, buf, buf->omx_buf->pBuffer);
 
-          /* Reset offset and filled length */
-          buf->omx_buf->nOffset = 0;
-          buf->omx_buf->nFilledLen = 0;
-
           /* Reset all flags, some implementations don't
            * reset them themselves and the flags are not
            * valid anymore after the buffer was consumed
            */
-          buf->omx_buf->nFlags = 0;
+          gst_omx_buffer_reset (buf);
         } else {
           /* Output buffer contains output now or
            * the port was flushed */
@@ -1580,11 +1585,7 @@ gst_omx_port_release_buffer (GstOMXPort * port, GstOMXBuffer * buf)
      * reset them themselves and the flags are not
      * valid anymore after the buffer was consumed
      */
-    buf->omx_buf->nFlags = 0;
-
-    /* Reset offset and filled length */
-    buf->omx_buf->nOffset = 0;
-    buf->omx_buf->nFilledLen = 0;
+    gst_omx_buffer_reset (buf);
   }
 
   if ((err = comp->last_error) != OMX_ErrorNone) {
@@ -2225,8 +2226,8 @@ gst_omx_port_populate_unlocked (GstOMXPort * port)
        * reset them themselves and the flags are not
        * valid anymore after the buffer was consumed
        */
-      buf->omx_buf->nFlags = 0;
-      buf->omx_buf->nFilledLen = 0;
+      gst_omx_buffer_reset (buf);
+
 
       err = OMX_FillThisBuffer (comp->handle, buf->omx_buf);
 
