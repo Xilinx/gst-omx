@@ -2016,6 +2016,14 @@ gst_omx_video_dec_negotiate (GstOMXVideoDec * self)
   }
 
   GST_OMX_INIT_STRUCT (&param);
+  err =
+   	gst_omx_component_get_parameter (self->dec,
+        OMX_IndexParamVideoPortFormat, &param);
+  if (err != OMX_ErrorNone) {
+    GST_ERROR_OBJECT (self, "Failed to get video port format: %s (0x%08x)",
+        gst_omx_error_to_string (err), err);
+  }
+
   param.nPortIndex = self->dec_out_port->index;
 
   for (l = negotiation_map; l; l = l->next) {
