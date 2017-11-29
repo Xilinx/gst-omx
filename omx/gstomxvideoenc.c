@@ -2016,9 +2016,14 @@ gst_omx_video_enc_set_format (GstVideoEncoder * encoder,
         return FALSE;
     }
 
+/* When OMX component is asked to switch from Loaded->Idle,
+ZYNQ_USCALE_PLUS omx implementation does not return this call untill 
+its input & output  port buffers get allocated. So let's skip this check here*/   
+#ifndef USE_OMX_TARGET_ZYNQ_USCALE_PLUS
     if (gst_omx_component_get_state (self->enc,
             GST_CLOCK_TIME_NONE) != OMX_StateIdle)
       return FALSE;
+#endif
 
 #ifdef USE_OMX_TARGET_ZYNQ_USCALE_PLUS
     if ((self->input_mode == OMX_Enc_InputMode_ZeroCopy) ||
