@@ -2091,7 +2091,14 @@ out:
 }
 #endif
 
+static gboolean
+gst_omx_video_dec_allocate_in_buffers (GstOMXVideoDec * self)
+{
+  if (gst_omx_port_allocate_buffers (self->dec_in_port) != OMX_ErrorNone)
+    return FALSE;
 
+  return TRUE;
+}
 
 static gboolean
 gst_omx_video_dec_set_format (GstVideoDecoder * decoder,
@@ -2273,7 +2280,7 @@ gst_omx_video_dec_set_format (GstVideoDecoder * decoder,
   if (needs_disable) {
     if (gst_omx_port_set_enabled (self->dec_in_port, TRUE) != OMX_ErrorNone)
       return FALSE;
-    if (gst_omx_port_allocate_buffers (self->dec_in_port) != OMX_ErrorNone)
+    if (!gst_omx_video_dec_allocate_in_buffers (self))
       return FALSE;
 
     if ((klass->cdata.hacks & GST_OMX_HACK_NO_DISABLE_OUTPORT)) {
@@ -2310,7 +2317,7 @@ gst_omx_video_dec_set_format (GstVideoDecoder * decoder,
         return FALSE;
 
       /* Need to allocate buffers to reach Idle state */
-      if (gst_omx_port_allocate_buffers (self->dec_in_port) != OMX_ErrorNone)
+      if (!gst_omx_video_dec_allocate_in_buffers (self))
         return FALSE;
     } else {
       if (gst_omx_component_set_state (self->dec,
@@ -2319,13 +2326,13 @@ gst_omx_video_dec_set_format (GstVideoDecoder * decoder,
 
 #if !defined (USE_OMX_TARGET_ZYNQ_USCALE_PLUS)
 
-      if (gst_omx_port_allocate_buffers (self->dec_in_port) != OMX_ErrorNone)
+      if (!gst_omx_video_dec_allocate_in_buffers (self))
         return FALSE;
 
 #else
       /* Need to allocate buffers to reach Idle state */
       if (self->ip_mode == GST_OMX_DEC_IP_DEFAULT) {
-        if (gst_omx_port_allocate_buffers (self->dec_in_port) != OMX_ErrorNone)
+        if (!gst_omx_video_dec_allocate_in_buffers (self))
           return FALSE;
       }
 
