@@ -2398,6 +2398,11 @@ gst_omx_video_dec_set_format (GstVideoDecoder * decoder,
   gst_omx_video_dec_set_latency (self);
 #endif
 
+  /* HACK: we should do this only when we know that OMX received enough enough
+   * information about the input stream and so is ready to allocate output */
+  if (gst_omx_video_dec_reconfigure_output_port (self) != OMX_ErrorNone)
+    return FALSE;
+
   self->downstream_flow_ret = GST_FLOW_OK;
   return TRUE;
 }
