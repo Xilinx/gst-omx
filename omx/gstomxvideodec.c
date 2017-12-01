@@ -2327,20 +2327,10 @@ gst_omx_video_dec_set_format (GstVideoDecoder * decoder,
         return FALSE;
 
       /* Need to allocate buffers to reach Idle state */
-      if (!gst_omx_video_dec_allocate_in_buffers (self))
-        return FALSE;
-    } else {
-      if (gst_omx_component_set_state (self->dec,
-              OMX_StateIdle) != OMX_ErrorNone)
-        return FALSE;
-
 #if !defined (USE_OMX_TARGET_ZYNQ_USCALE_PLUS)
-
       if (!gst_omx_video_dec_allocate_in_buffers (self))
         return FALSE;
-
 #else
-      /* Need to allocate buffers to reach Idle state */
       if (self->ip_mode == GST_OMX_DEC_IP_DEFAULT) {
         if (!gst_omx_video_dec_allocate_in_buffers (self))
           return FALSE;
@@ -2368,9 +2358,16 @@ gst_omx_video_dec_set_format (GstVideoDecoder * decoder,
         g_list_free (buffer_list);
       }
 #endif
-      if (gst_omx_port_allocate_buffers (self->dec_out_port) != OMX_ErrorNone)
+    } else {
+      if (gst_omx_component_set_state (self->dec,
+              OMX_StateIdle) != OMX_ErrorNone)
         return FALSE;
 
+      if (!gst_omx_video_dec_allocate_in_buffers (self))
+        return FALSE;
+
+      if (gst_omx_port_allocate_buffers (self->dec_out_port) != OMX_ErrorNone)
+        return FALSE;
     }
 
     if (gst_omx_component_get_state (self->dec,
