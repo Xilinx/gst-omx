@@ -2660,6 +2660,8 @@ gst_omx_parse_hacks (gchar ** hacks)
       hacks_flags |= GST_OMX_HACK_NO_COMPONENT_ROLE;
     else if (g_str_equal (*hacks, "no-disable-outport"))
       hacks_flags |= GST_OMX_HACK_NO_DISABLE_OUTPORT;
+    else if (g_str_equal (*hacks, "pass-color-format-to-decoder"))
+      hacks_flags |= GST_OMX_HACK_PASS_COLOR_FORMAT_TO_DECODER;
     else
       GST_WARNING ("Unknown hack: %s", *hacks);
     hacks++;

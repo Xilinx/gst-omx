@@ -118,6 +118,15 @@ G_BEGIN_DECLS
  */
 #define GST_OMX_HACK_NO_DISABLE_OUTPORT                               G_GUINT64_CONSTANT (0x0000000000000100)
 
+/* If we should pass the color format information from upstream to the
+ * OMX decoder input. This is a violation of the OMX spec as
+ * the eColorFormat field is supposed to only be used if eCompressionFormat is
+ * set to OMX_IMAGE_CodingUnused.
+ * Do this as a platform specific hack for OMX implementation which may use
+ * this information to pre-allocate internal buffers for example.
+ */
+#define GST_OMX_HACK_PASS_COLOR_FORMAT_TO_DECODER        G_GUINT64_CONSTANT (0x0000000000001000)
+
 typedef struct _GstOMXCore GstOMXCore;
 typedef struct _GstOMXPort GstOMXPort;
 typedef enum _GstOMXPortDirection GstOMXPortDirection;
