@@ -1489,6 +1489,24 @@ gst_omx_video_enc_handle_output_frame (GstOMXVideoEnc * self, GstOMXPort * port,
   return flow_ret;
 }
 
+static gboolean
+gst_omx_video_enc_allocate_in_buffers (GstOMXVideoEnc * self)
+{
+  if (gst_omx_port_allocate_buffers (self->enc_in_port) != OMX_ErrorNone)
+    return FALSE;
+
+  return TRUE;
+}
+
+static gboolean
+gst_omx_video_enc_allocate_out_buffers (GstOMXVideoEnc * self)
+{
+  if (gst_omx_port_allocate_buffers (self->enc_out_port) != OMX_ErrorNone)
+    return FALSE;
+
+  return TRUE;
+}
+
 static void
 gst_omx_video_enc_loop (GstOMXVideoEnc * self)
 {
@@ -1569,8 +1587,7 @@ gst_omx_video_enc_loop (GstOMXVideoEnc * self)
       if (err != OMX_ErrorNone)
         goto reconfigure_error;
 
-      err = gst_omx_port_allocate_buffers (port);
-      if (err != OMX_ErrorNone)
+      if (!gst_omx_video_enc_allocate_out_buffers (self))
         goto reconfigure_error;
 
       err = gst_omx_port_wait_enabled (port, 5 * GST_SECOND);
@@ -2008,13 +2025,13 @@ gst_omx_video_enc_set_format (GstVideoEncoder * encoder,
   if (needs_disable) {
     if (gst_omx_port_set_enabled (self->enc_in_port, TRUE) != OMX_ErrorNone)
       return FALSE;
-    if (gst_omx_port_allocate_buffers (self->enc_in_port) != OMX_ErrorNone)
+    if (!gst_omx_video_enc_allocate_in_buffers (self))
       return FALSE;
 
     if ((klass->cdata.hacks & GST_OMX_HACK_NO_DISABLE_OUTPORT)) {
       if (gst_omx_port_set_enabled (self->enc_out_port, TRUE) != OMX_ErrorNone)
         return FALSE;
-      if (gst_omx_port_allocate_buffers (self->enc_out_port) != OMX_ErrorNone)
+      if (!gst_omx_video_enc_allocate_out_buffers (self))
         return FALSE;
 
       if (gst_omx_port_wait_enabled (self->enc_out_port,
@@ -2042,7 +2059,7 @@ gst_omx_video_enc_set_format (GstVideoEncoder * encoder,
         return FALSE;
 
       /* Need to allocate buffers to reach Idle state */
-      if (gst_omx_port_allocate_buffers (self->enc_in_port) != OMX_ErrorNone)
+      if (!gst_omx_video_enc_allocate_in_buffers (self))
         return FALSE;
     } else {
       if (gst_omx_component_set_state (self->enc,
@@ -2052,7 +2069,7 @@ gst_omx_video_enc_set_format (GstVideoEncoder * encoder,
       /* Need to allocate buffers to reach Idle state */
 #ifdef USE_OMX_TARGET_ZYNQ_USCALE_PLUS
       if (self->input_mode == OMX_Enc_InputMode_DefaultImplementation) {
-        if (gst_omx_port_allocate_buffers (self->enc_in_port) != OMX_ErrorNone)
+        if (!gst_omx_video_enc_allocate_in_buffers (self))
           return FALSE;
       }
 
@@ -2078,11 +2095,11 @@ gst_omx_video_enc_set_format (GstVideoEncoder * encoder,
         g_list_free (self->buffer_list);
       }
 #else 
-      if (gst_omx_port_allocate_buffers (self->enc_in_port) != OMX_ErrorNone)
+      if (!gst_omx_video_enc_allocate_in_buffers (self))
         return FALSE;
 #endif
 
-      if (gst_omx_port_allocate_buffers (self->enc_out_port) != OMX_ErrorNone)
+      if (!gst_omx_video_enc_allocate_out_buffers (self))
         return FALSE;
     }
 
@@ -2589,8 +2606,7 @@ gst_omx_video_enc_handle_frame (GstVideoEncoder * encoder,
         goto reconfigure_error;
       }
 
-      err = gst_omx_port_allocate_buffers (port);
-      if (err != OMX_ErrorNone) {
+      if (!gst_omx_video_enc_allocate_in_buffers (self)) {
         GST_VIDEO_ENCODER_STREAM_LOCK (self);
         goto reconfigure_error;
       }
