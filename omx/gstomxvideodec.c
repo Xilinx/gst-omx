@@ -2094,15 +2094,8 @@ out:
 static gboolean
 gst_omx_video_dec_allocate_in_buffers (GstOMXVideoDec * self)
 {
-  OMX_PARAM_PORTDEFINITIONTYPE port_def;
-
-  gst_omx_port_get_port_definition (self->dec_in_port, &port_def);
-  if (port_def.nBufferCountActual != port_def.nBufferCountMin) {
-    port_def.nBufferCountActual = port_def.nBufferCountMin;
-
-    GST_DEBUG_OBJECT (self, "set input nBufferCountActual to %d",
-        port_def.nBufferCountActual);
-  }
+  if (!gst_omx_port_ensure_buffer_count_actual (self->dec_in_port))
+    return FALSE;
 
   if (gst_omx_port_allocate_buffers (self->dec_in_port) != OMX_ErrorNone)
     return FALSE;
