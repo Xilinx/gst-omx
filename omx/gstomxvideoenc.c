@@ -1492,6 +1492,9 @@ gst_omx_video_enc_handle_output_frame (GstOMXVideoEnc * self, GstOMXPort * port,
 static gboolean
 gst_omx_video_enc_allocate_in_buffers (GstOMXVideoEnc * self)
 {
+  if (!gst_omx_port_ensure_buffer_count_actual (self->enc_in_port))
+    return FALSE;
+
   if (gst_omx_port_allocate_buffers (self->enc_in_port) != OMX_ErrorNone)
     return FALSE;
 
@@ -1501,6 +1504,9 @@ gst_omx_video_enc_allocate_in_buffers (GstOMXVideoEnc * self)
 static gboolean
 gst_omx_video_enc_allocate_out_buffers (GstOMXVideoEnc * self)
 {
+  if (!gst_omx_port_ensure_buffer_count_actual (self->enc_out_port))
+    return FALSE;
+
   if (gst_omx_port_allocate_buffers (self->enc_out_port) != OMX_ErrorNone)
     return FALSE;
 
