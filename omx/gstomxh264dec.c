@@ -95,8 +95,8 @@ gst_omx_h264_dec_set_format (GstOMXVideoDec * dec, GstOMXPort * port,
   OMX_PARAM_PORTDEFINITIONTYPE port_def;
   OMX_ERRORTYPE err;
   OMX_VIDEO_PARAM_PROFILELEVELTYPE param;
-  GstCaps *peercaps;
   const gchar *profile_string, *level_string;
+  GstStructure *s;
 
   gst_omx_port_get_port_definition (port, &port_def);
   port_def.format.video.eCompressionFormat = OMX_VIDEO_CodingAVC;
@@ -116,32 +116,19 @@ gst_omx_h264_dec_set_format (GstOMXVideoDec * dec, GstOMXPort * port,
     return TRUE;
   }
 
-  peercaps = gst_pad_peer_query_caps (GST_VIDEO_DECODER_SINK_PAD (dec),
-      gst_pad_get_pad_template_caps (GST_VIDEO_DECODER_SINK_PAD (dec)));
-  if (peercaps) {
-    GstStructure *s;
+  s = gst_caps_get_structure (state->caps, 0);
+  profile_string = gst_structure_get_string (s, "profile");
+  if (profile_string) {
+    param.eProfile = gst_omx_h264_utils_get_profile_from_str (profile_string);
 
-    if (gst_caps_is_empty (peercaps)) {
-      gst_caps_unref (peercaps);
-      GST_ERROR_OBJECT (self, "Empty caps");
-      return FALSE;
-    }
-
-    s = gst_caps_get_structure (peercaps, 0);
-    profile_string = gst_structure_get_string (s, "profile");
-    if (profile_string) {
-      param.eProfile = gst_omx_h264_utils_get_profile_from_str (profile_string);
-
-      if (param.eProfile == OMX_VIDEO_AVCProfileMax)
-        goto unsupported_profile;
-    }
-    level_string = gst_structure_get_string (s, "level");
-    if (level_string) {
-      param.eLevel = gst_omx_h264_utils_get_level_from_str (level_string);
-      if (param.eLevel == OMX_VIDEO_AVCLevelMax)
-        goto unsupported_level;
-    }
-    gst_caps_unref (peercaps);
+    if (param.eProfile == OMX_VIDEO_AVCProfileMax)
+      goto unsupported_profile;
+  }
+  level_string = gst_structure_get_string (s, "level");
+  if (level_string) {
+    param.eLevel = gst_omx_h264_utils_get_level_from_str (level_string);
+    if (param.eLevel == OMX_VIDEO_AVCLevelMax)
+      goto unsupported_level;
   }
 
   err =
@@ -162,11 +149,9 @@ gst_omx_h264_dec_set_format (GstOMXVideoDec * dec, GstOMXPort * port,
 
 unsupported_profile:
   GST_ERROR_OBJECT (self, "Unsupported profile %s", profile_string);
-  gst_caps_unref (peercaps);
   return FALSE;
 
 unsupported_level:
   GST_ERROR_OBJECT (self, "Unsupported level %s", level_string);
-  gst_caps_unref (peercaps);
   return FALSE;
 }

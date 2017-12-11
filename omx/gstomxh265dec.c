@@ -96,8 +96,8 @@ gst_omx_h265_dec_set_format (GstOMXVideoDec * dec, GstOMXPort * port,
   OMX_PARAM_PORTDEFINITIONTYPE port_def;
   OMX_ERRORTYPE err;
   OMX_VIDEO_PARAM_PROFILELEVELTYPE param;
-  GstCaps *peercaps;
   const gchar *profile_string = NULL, *level_string = NULL, *tier_string;
+  GstStructure *s;
 
   gst_omx_port_get_port_definition (port, &port_def);
   port_def.format.video.eCompressionFormat = OMX_VIDEO_CodingVendorStartUnused;
@@ -117,65 +117,48 @@ gst_omx_h265_dec_set_format (GstOMXVideoDec * dec, GstOMXPort * port,
         "Setting profile/level not supported by component");
   }
 
-  peercaps = gst_pad_peer_query_caps (GST_VIDEO_DECODER_SINK_PAD (dec),
-      gst_pad_get_pad_template_caps (GST_VIDEO_DECODER_SINK_PAD (dec)));
-  if (peercaps) {
-    GstStructure *s;
+  s = gst_caps_get_structure (state->caps, 0);
 
-    if (gst_caps_is_empty (peercaps)) {
-      gst_caps_unref (peercaps);
-      GST_ERROR_OBJECT (self, "Empty caps");
+  if (err == OMX_ErrorNone) {
+    profile_string = gst_structure_get_string (s, "profile");
+    if (profile_string) {
+      param.eProfile = gst_omx_h265_utils_get_profile_from_str (profile_string);
+      if (param.eProfile == OMX_ALG_VIDEO_HEVCProfileMax)
+        goto unsupported_profile;
+    }
+
+    tier_string = gst_structure_get_string (s, "tier");
+    level_string = gst_structure_get_string (s, "level");
+    if (tier_string && level_string) {
+      param.eLevel =
+          gst_omx_h265_utils_get_level_from_str (tier_string, level_string);
+
+      if (param.eLevel == OMX_ALG_VIDEO_HEVCLevelMax)
+        goto unsupported_level;
+    }
+
+    err =
+        gst_omx_component_set_parameter (GST_OMX_VIDEO_DEC (self)->dec,
+        OMX_IndexParamVideoProfileLevelCurrent, &param);
+    if (err == OMX_ErrorUnsupportedIndex) {
+      GST_WARNING_OBJECT (self,
+          "Setting profile/level not supported by component");
+    } else if (err != OMX_ErrorNone) {
+      GST_ERROR_OBJECT (self,
+          "Error setting profile %u and level %u: %s (0x%08x)",
+          (guint) param.eProfile, (guint) param.eLevel,
+          gst_omx_error_to_string (err), err);
       return FALSE;
     }
-
-    s = gst_caps_get_structure (peercaps, 0);
-
-    if (err == OMX_ErrorNone) {
-      profile_string = gst_structure_get_string (s, "profile");
-      if (profile_string) {
-        param.eProfile =
-            gst_omx_h265_utils_get_profile_from_str (profile_string);
-        if (param.eProfile == OMX_ALG_VIDEO_HEVCProfileMax)
-          goto unsupported_profile;
-      }
-
-      tier_string = gst_structure_get_string (s, "tier");
-      level_string = gst_structure_get_string (s, "level");
-      if (tier_string && level_string) {
-        param.eLevel =
-            gst_omx_h265_utils_get_level_from_str (tier_string, level_string);
-
-        if (param.eLevel == OMX_ALG_VIDEO_HEVCLevelMax)
-          goto unsupported_level;
-      }
-
-      err =
-          gst_omx_component_set_parameter (GST_OMX_VIDEO_DEC (self)->dec,
-          OMX_IndexParamVideoProfileLevelCurrent, &param);
-      if (err == OMX_ErrorUnsupportedIndex) {
-        GST_WARNING_OBJECT (self,
-            "Setting profile/level not supported by component");
-      } else if (err != OMX_ErrorNone) {
-        GST_ERROR_OBJECT (self,
-            "Error setting profile %u and level %u: %s (0x%08x)",
-            (guint) param.eProfile, (guint) param.eLevel,
-            gst_omx_error_to_string (err), err);
-        return FALSE;
-      }
-    }
-
-    gst_caps_unref (peercaps);
   }
 
   return TRUE;
 
 unsupported_profile:
   GST_ERROR_OBJECT (self, "Unsupported profile %s", profile_string);
-  gst_caps_unref (peercaps);
   return FALSE;
 
 unsupported_level:
   GST_ERROR_OBJECT (self, "Unsupported level %s", level_string);
-  gst_caps_unref (peercaps);
   return FALSE;
 }
