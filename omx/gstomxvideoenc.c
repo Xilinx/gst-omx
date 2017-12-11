@@ -923,9 +923,23 @@ gst_omx_video_enc_open (GstVideoEncoder * encoder)
   /* Set properties */
   {
     OMX_ERRORTYPE err;
+#ifdef USE_OMX_TARGET_ZYNQ_USCALE_PLUS
+    if (!set_zynqultrascaleplus_props (self))
+      return FALSE;
+#endif
 
     if (self->control_rate != 0xffffffff || self->target_bitrate != 0xffffffff) {
       OMX_VIDEO_PARAM_BITRATETYPE bitrate_param;
+
+#ifdef USE_OMX_TARGET_ZYNQ_USCALE_PLUS
+        /* max-bitrate setting is necessary property for VBR rate control-mode  */
+        if (self->control_rate == OMX_Video_ControlRateVariable &&
+	        self->max_bitrate == GST_OMX_VIDEO_ENC_MAX_BITRATE_DEFAULT) {
+                GST_ERROR_OBJECT (self, "max-bitrate is necessary property for VBR rate control mode");
+                g_warning("max-bitrate setting is required for VBR rate control-mode and it should be >= target-bitrate");
+                return FALSE;
+        }
+#endif
 
       GST_OMX_INIT_STRUCT (&bitrate_param);
       bitrate_param.nPortIndex = self->enc_out_port->index;
@@ -1012,10 +1026,6 @@ gst_omx_video_enc_open (GstVideoEncoder * encoder)
 
       }
     }
-#ifdef USE_OMX_TARGET_ZYNQ_USCALE_PLUS
-    if (!set_zynqultrascaleplus_props (self))
-      return FALSE;
-#endif
   }
 
   return TRUE;
