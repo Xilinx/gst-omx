@@ -58,6 +58,10 @@
 #include <OMX_IndexExt.h>
 #endif
 
+#ifdef HAVE_CORE_EXT
+#include <OMX_CoreExt.h>
+#endif
+
 #ifdef GST_OMX_STRUCT_PACKING
 #pragma pack()
 #endif

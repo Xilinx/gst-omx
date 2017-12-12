@@ -175,8 +175,10 @@ AM_CONDITIONAL(HAVE_EXTERNAL_OMX, test "x$HAVE_EXTERNAL_OMX" = "xyes")
 
 dnl Our internal OpenMAX IL headers have OMX_VideoExt.h
 HAVE_VIDEO_EXT=yes
+HAVE_CORE_EXT=yes
 if test "x$HAVE_EXTERNAL_OMX" = "xyes"; then
     AC_CHECK_HEADER([OMX_VideoExt.h], [HAVE_VIDEO_EXT=yes], [HAVE_VIDEO_EXT=no], [AC_INCLUDES_DEFAULT])
+    AC_CHECK_HEADER([OMX_CoreExt.h], [HAVE_CORE_EXT=yes], [HAVE_CORE_EXT=no], [AC_INCLUDES_DEFAULT])
 fi
 
 VIDEO_HEADERS="#include <OMX_Video.h>"
@@ -185,6 +187,10 @@ if test "x$HAVE_VIDEO_EXT" = "xyes"; then
     VIDEO_HEADERS="$VIDEO_HEADERS
 #include <OMX_VideoExt.h>
 "
+fi
+
+if test "x$HAVE_CORE_EXT" = "xyes"; then
+    AC_DEFINE(HAVE_CORE_EXT, 1, [OpenMAX IL has OMX_CoreExt.h header])
 fi
 
 AC_CHECK_DECLS([OMX_VIDEO_CodingVP8],
