@@ -2115,8 +2115,16 @@ gst_omx_video_enc_set_format (GstVideoEncoder * encoder,
         return FALSE;
 #endif
 
+#ifdef USE_OMX_TARGET_ZYNQ_USCALE_PLUS
+      /* HACK: For now, ensuring we have at least 4 output buffers for encoder output port
+	 but proper fix is to add extra buffers depending upon peer element */
+      self->enc_out_port->port_def.nBufferCountActual = MAX(self->enc_out_port->port_def.nBufferCountActual,4);
+      gst_omx_port_update_port_definition (self->enc_out_port,
+		      &self->enc_out_port->port_def);
+
       if (!gst_omx_video_enc_allocate_out_buffers (self))
-        return FALSE;
+	 return FALSE;
+#endif
     }
 
 /* When OMX component is asked to switch from Loaded->Idle,

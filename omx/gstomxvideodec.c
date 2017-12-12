@@ -2404,8 +2404,14 @@ gst_omx_video_dec_set_format (GstVideoDecoder * decoder,
       if (!gst_omx_video_dec_allocate_in_buffers (self))
         return FALSE;
 #else
+
+   /* HACK: For now, ensuring we have at least 4 output buffers for decoder input port
+	   but proper fix is to add extra buffers depending upon peer element */
+     self->dec_in_port->port_def.nBufferCountActual=MAX(4, self->dec_in_port->port_def.nBufferCountActual);
+
       if (self->ip_mode == GST_OMX_DEC_IP_DEFAULT) {
-        if (!gst_omx_video_dec_allocate_in_buffers (self))
+        gst_omx_port_update_port_definition (self->dec_in_port, &self->dec_in_port->port_def );
+	if (!gst_omx_video_dec_allocate_in_buffers (self))
           return FALSE;
       }
 
@@ -2416,9 +2422,7 @@ gst_omx_video_dec_set_format (GstVideoDecoder * decoder,
       if (self->ip_mode == GST_OMX_DEC_IP_ZERO_COPY) {
         mem = gst_buffer_new_allocate (NULL, 1024, NULL);
         gst_buffer_map (mem, &map_info, GST_MAP_READ);
-
-        gst_omx_port_update_port_definition (self->dec_in_port, NULL);
-
+        gst_omx_port_update_port_definition (self->dec_in_port, &self->dec_in_port->port_def );
         for (i = 0; i < self->dec_in_port->port_def.nBufferCountActual; i++)
           buffer_list = g_list_append (buffer_list, map_info.data);
 
@@ -2432,6 +2436,7 @@ gst_omx_video_dec_set_format (GstVideoDecoder * decoder,
       }
 #endif
     } else {
+
       if (gst_omx_component_set_state (self->dec,
               OMX_StateIdle) != OMX_ErrorNone)
         return FALSE;

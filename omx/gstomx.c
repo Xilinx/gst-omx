@@ -2406,7 +2406,9 @@ gst_omx_port_ensure_buffer_count_actual (GstOMXPort * port)
 
   gst_omx_port_get_port_definition (port, &port_def);
   if (port_def.nBufferCountActual != port_def.nBufferCountMin) {
-    port_def.nBufferCountActual = port_def.nBufferCountMin;
+
+   /* HACK: For now ensuring that caller has atleast 4 buffers allocated */
+    port_def.nBufferCountActual = MAX(port_def.nBufferCountMin,4);
 
     GST_DEBUG_OBJECT (port->comp->parent,
         "set port %d nBufferCountActual to %d",
