@@ -2226,6 +2226,9 @@ its input & output  port buffers get allocated. So let's skip this check here*/
 #ifdef USE_OMX_TARGET_ZYNQ_USCALE_PLUS
   if ((self->input_mode == OMX_Enc_InputMode_ZeroCopy) ||
       (self->input_mode == OMX_Enc_InputMode_DefaultImplementation)) {
+    /* HACK: this should be done as part of the normal code flow (see #1340) */
+    gst_omx_port_populate (self->enc_out_port);
+
     /* Start the srcpad loop again */
     GST_DEBUG_OBJECT (self, "Starting task again");
     self->downstream_flow_ret = GST_FLOW_OK;
@@ -2612,6 +2615,9 @@ gst_omx_video_enc_handle_frame (GstVideoEncoder * encoder,
       if (gst_omx_component_get_state (self->enc,
               GST_CLOCK_TIME_NONE) != OMX_StateExecuting)
         return FALSE;
+
+      /* HACK: this should be done as part of the normal code flow (see #1340) */
+      gst_omx_port_populate (self->enc_out_port);
 
       /* Start the srcpad loop again */
       GST_DEBUG_OBJECT (self, "Starting task again");
