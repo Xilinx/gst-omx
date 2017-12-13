@@ -2866,7 +2866,13 @@ gst_omx_video_dec_handle_frame (GstVideoDecoder * decoder,
       goto release_error;
   }
 
-  gst_video_codec_frame_unref (frame);
+  if (GST_BUFFER_FLAG_IS_SET (frame->input_buffer, GST_OMX_BUFFER_FLAG_SUBFRAME)) {
+    /* Decoder base class isn't handling subframes so release it manually so they don't
+     * pile up in its frames list. */
+    gst_video_decoder_release_frame (decoder, frame);
+  } else {
+    gst_video_codec_frame_unref (frame);
+  }
 
   GST_DEBUG_OBJECT (self, "Passed frame to component");
 

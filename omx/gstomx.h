@@ -77,6 +77,8 @@ G_BEGIN_DECLS
   (st)->nVersion.s.nStep = OMX_VERSION_STEP; \
 } G_STMT_END
 
+#define GST_OMX_BUFFER_FLAG_SUBFRAME (GST_VIDEO_BUFFER_FLAG_LAST << 0)
+
 /* Different hacks that are required to work around
  * bugs in different OpenMAX implementations
  */

@@ -1534,6 +1534,8 @@ gst_omx_video_enc_handle_output_frame (GstOMXVideoEnc * self, GstOMXPort * port,
 
       gst_video_codec_frame_unref (frame);
       frame = NULL;
+
+      GST_BUFFER_FLAG_SET (outbuf, GST_OMX_BUFFER_FLAG_SUBFRAME);
     }
 
     if ((klass->cdata.hacks & GST_OMX_HACK_SYNCFRAME_FLAG_NOT_USED)
