@@ -129,6 +129,8 @@ G_BEGIN_DECLS
 #define OMX_StateInvalid OMX_StateReserved_0x00000000
 #endif
 
+#define GST_OMX_BUFFER_FLAG_SUBFRAME (GST_VIDEO_BUFFER_FLAG_LAST << 0)
+
 /* Different hacks that are required to work around
  * bugs in different OpenMAX implementations
  */
