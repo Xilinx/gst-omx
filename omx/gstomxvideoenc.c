@@ -2443,6 +2443,9 @@ gst_omx_video_enc_handle_frame (GstVideoEncoder * encoder,
         return FALSE;
     }
 
+    /* HACK: this should be done as part of the normal code flow (see #1340) */
+    gst_omx_port_populate (self->enc_out_port);
+
     GST_DEBUG_OBJECT (self, "Starting task");
     gst_pad_start_task (GST_VIDEO_ENCODER_SRC_PAD (self),
         (GstTaskFunction) gst_omx_video_enc_loop, self, NULL);
