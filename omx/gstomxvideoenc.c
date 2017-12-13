@@ -1520,6 +1520,22 @@ gst_omx_video_enc_handle_output_frame (GstOMXVideoEnc * self, GstOMXPort * port,
           gst_util_uint64_scale (buf->omx_buf->nTickCount, GST_SECOND,
           OMX_TICKS_PER_SECOND);
 
+    /* Call gst_video_encoder_finish_frame() when we receive the end of the
+     * frame not for subframes, so we don't mess with timestamps. */
+    if (buf->omx_buf->nFlags & OMX_BUFFERFLAG_ENDOFFRAME) {
+      if (!frame)
+        GST_ERROR_OBJECT (self, "No corresponding frame found");
+    } else {
+      /* Subframe, by-pass encoder bass class as it's now aware of subframes.
+       * Also manually set the PTS/DTS from the input frame (more precise than the
+       * OMX ts) as it won't be done by finish_frame() */
+      GST_BUFFER_PTS (outbuf) = frame->pts;
+      GST_BUFFER_DTS (outbuf) = frame->dts;
+
+      gst_video_codec_frame_unref (frame);
+      frame = NULL;
+    }
+
     if ((klass->cdata.hacks & GST_OMX_HACK_SYNCFRAME_FLAG_NOT_USED)
         || (buf->omx_buf->nFlags & OMX_BUFFERFLAG_SYNCFRAME)) {
       if (frame)
@@ -1538,7 +1554,6 @@ gst_omx_video_enc_handle_output_frame (GstOMXVideoEnc * self, GstOMXPort * port,
       flow_ret =
           gst_video_encoder_finish_frame (GST_VIDEO_ENCODER (self), frame);
     } else {
-      GST_ERROR_OBJECT (self, "No corresponding frame found");
       flow_ret = gst_pad_push (GST_VIDEO_ENCODER_SRC_PAD (self), outbuf);
     }
   } else if (frame != NULL) {
