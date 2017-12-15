@@ -372,7 +372,7 @@ OMX_ERRORTYPE     gst_omx_port_mark_reconfigured (GstOMXPort * port);
 OMX_ERRORTYPE     gst_omx_port_set_enabled (GstOMXPort * port, gboolean enabled);
 OMX_ERRORTYPE     gst_omx_port_wait_enabled (GstOMXPort * port, GstClockTime timeout);
 gboolean          gst_omx_port_is_enabled (GstOMXPort * port);
-gboolean          gst_omx_port_ensure_buffer_count_actual (GstOMXPort * port);
+gboolean          gst_omx_port_ensure_buffer_count_actual (GstOMXPort * port, const gchar *extra_env);
 
 
 void              gst_omx_set_default_role (GstOMXClassData *class_data, const gchar *default_role);

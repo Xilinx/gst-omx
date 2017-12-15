@@ -26,6 +26,7 @@
 
 #include <gst/gst.h>
 #include <string.h>
+#include <stdlib.h>
 
 #include "gstomx.h"
 #include "gstomxmjpegdec.h"
@@ -2400,17 +2401,28 @@ gst_omx_port_is_enabled (GstOMXPort * port)
  * less buffers than the worst case in such scenarios.
  */
 gboolean
-gst_omx_port_ensure_buffer_count_actual (GstOMXPort * port)
+gst_omx_port_ensure_buffer_count_actual (GstOMXPort * port,
+    const gchar * extra_env)
 {
   OMX_PARAM_PORTDEFINITIONTYPE port_def;
+  guint nb, extra = 0;
 
   gst_omx_port_get_port_definition (port, &port_def);
-  if (port_def.nBufferCountActual != port_def.nBufferCountMin) {
-    port_def.nBufferCountActual = port_def.nBufferCountMin;
+
+  if (extra_env && g_getenv (extra_env)) {
+    extra = atoi (g_getenv (extra_env));
 
     GST_DEBUG_OBJECT (port->comp->parent,
-        "set port %d nBufferCountActual to %d",
-        (guint) port->index, (guint) port_def.nBufferCountActual);
+        "User requested %d extra buffers for port %d", extra,
+        (guint) port->index);
+  }
+
+  nb = port_def.nBufferCountMin + extra;
+  if (port_def.nBufferCountActual != nb) {
+    port_def.nBufferCountActual = nb;
+
+    GST_DEBUG_OBJECT (port->comp->parent,
+        "set port %d nBufferCountActual to %d", (guint) port->index, nb);
 
     if (gst_omx_port_update_port_definition (port, &port_def) != OMX_ErrorNone)
       return FALSE;

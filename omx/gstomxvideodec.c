@@ -2155,7 +2155,7 @@ out:
 static gboolean
 gst_omx_video_dec_allocate_in_buffers (GstOMXVideoDec * self)
 {
-  if (!gst_omx_port_ensure_buffer_count_actual (self->dec_in_port))
+  if (!gst_omx_port_ensure_buffer_count_actual (self->dec_in_port, "OMX_DECODER_INPUT_EXTRA_BUFFERS"))
     return FALSE;
 
   if (gst_omx_port_allocate_buffers (self->dec_in_port) != OMX_ErrorNone)
