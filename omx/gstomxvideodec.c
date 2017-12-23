@@ -1427,6 +1427,16 @@ enable_port:
   if (err != OMX_ErrorNone)
     goto done;
 
+#ifdef USE_OMX_TARGET_ZYNQ_USCALE_PLUS
+    if (gst_omx_component_set_state (self->dec,
+            OMX_StateExecuting) != OMX_ErrorNone)
+      return FALSE;
+
+    if (gst_omx_component_get_state (self->dec,
+            GST_CLOCK_TIME_NONE) != OMX_StateExecuting)
+      return FALSE;
+#endif
+
   fds = g_array_new (FALSE, FALSE, sizeof (gint));
   for (i = 0; i < self->dec_out_port->port_def.nBufferCountActual; i++) {
     tmp = g_ptr_array_index (port->buffers, i);
@@ -2503,6 +2513,7 @@ gst_omx_video_dec_set_format (GstVideoDecoder * decoder,
             GST_CLOCK_TIME_NONE) != OMX_StateIdle)
       return FALSE;
 
+#ifndef USE_OMX_TARGET_ZYNQ_USCALE_PLUS
     if (gst_omx_component_set_state (self->dec,
             OMX_StateExecuting) != OMX_ErrorNone)
       return FALSE;
@@ -2510,8 +2521,8 @@ gst_omx_video_dec_set_format (GstVideoDecoder * decoder,
     if (gst_omx_component_get_state (self->dec,
             GST_CLOCK_TIME_NONE) != OMX_StateExecuting)
       return FALSE;
+#endif
   }
-
   /* Unset flushing to allow ports to accept data again */
   gst_omx_port_set_flushing (self->dec_in_port, 5 * GST_SECOND, FALSE);
   gst_omx_port_set_flushing (self->dec_out_port, 5 * GST_SECOND, FALSE);
