@@ -1442,6 +1442,15 @@ gst_omx_video_enc_ensure_nb_out_buffers (GstOMXVideoEnc * self)
   return TRUE;
 }
 
+static gboolean
+gst_omx_video_enc_allocate_out_buffers (GstOMXVideoEnc * self)
+{
+  if (gst_omx_port_allocate_buffers (self->enc_out_port) != OMX_ErrorNone)
+    return FALSE;
+
+  return TRUE;
+}
+
 static void
 gst_omx_video_enc_pause_loop (GstOMXVideoEnc * self, GstFlowReturn flow_ret)
 {
@@ -1539,8 +1548,7 @@ gst_omx_video_enc_loop (GstOMXVideoEnc * self)
       if (err != OMX_ErrorNone)
         goto reconfigure_error;
 
-      err = gst_omx_port_allocate_buffers (port);
-      if (err != OMX_ErrorNone)
+      if (!gst_omx_video_enc_allocate_out_buffers (self))
         goto reconfigure_error;
 
       err = gst_omx_port_wait_enabled (port, 5 * GST_SECOND);
@@ -2065,7 +2073,7 @@ gst_omx_video_enc_set_to_idle (GstOMXVideoEnc * self)
     return FALSE;
 
   if (no_disable_outport) {
-    if (gst_omx_port_allocate_buffers (self->enc_out_port) != OMX_ErrorNone)
+    if (!gst_omx_video_enc_allocate_out_buffers (self))
       return FALSE;
   }
 
@@ -2145,7 +2153,7 @@ gst_omx_video_enc_enable (GstOMXVideoEnc * self, GstBuffer * input)
     if ((klass->cdata.hacks & GST_OMX_HACK_NO_DISABLE_OUTPORT)) {
       if (gst_omx_port_set_enabled (self->enc_out_port, TRUE) != OMX_ErrorNone)
         return FALSE;
-      if (gst_omx_port_allocate_buffers (self->enc_out_port) != OMX_ErrorNone)
+      if (!gst_omx_video_enc_allocate_out_buffers (self))
         return FALSE;
 
       if (gst_omx_port_wait_enabled (self->enc_out_port,
