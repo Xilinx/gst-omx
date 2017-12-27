@@ -2241,6 +2241,9 @@ gst_omx_video_dec_disable (GstOMXVideoDec * self)
 static gboolean
 gst_omx_video_dec_allocate_in_buffers (GstOMXVideoDec * self)
 {
+  if (!gst_omx_port_ensure_buffer_count_actual (self->dec_in_port, 3))
+    return FALSE;
+
   switch (self->input_allocation) {
     case GST_OMX_BUFFER_ALLOCATION_ALLOCATE_BUFFER:
       if (gst_omx_port_allocate_buffers (self->dec_in_port) != OMX_ErrorNone)

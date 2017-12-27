@@ -2485,6 +2485,36 @@ gst_omx_port_is_enabled (GstOMXPort * port)
   return enabled;
 }
 
+/* The OMX specs states that the nBufferCountActual of a port has to default
+ * to its nBufferCountMin. If we don't change nBufferCountActual we purely rely
+ * on this default. But in some cases, OMX may change nBufferCountMin before we
+ * allocate buffers. Like for example when configuring the input ports with the
+ * actual format, it may decrease the number of minimal buffers required.
+ * This method checks this and update nBufferCountActual if needed so we'll use
+ * less buffers than the worst case in such scenarios.
+ */
+gboolean
+gst_omx_port_ensure_buffer_count_actual (GstOMXPort * port, guint extra)
+{
+  OMX_PARAM_PORTDEFINITIONTYPE port_def;
+  guint nb;
+
+  gst_omx_port_get_port_definition (port, &port_def);
+
+  nb = port_def.nBufferCountMin + extra;
+  if (port_def.nBufferCountActual != nb) {
+    port_def.nBufferCountActual = nb;
+
+    GST_DEBUG_OBJECT (port->comp->parent,
+        "set port %d nBufferCountActual to %d", (guint) port->index, nb);
+
+    if (gst_omx_port_update_port_definition (port, &port_def) != OMX_ErrorNone)
+      return FALSE;
+  }
+
+  return TRUE;
+}
+
 /* NOTE: Uses comp->lock and comp->messages_lock */
 OMX_ERRORTYPE
 gst_omx_port_mark_reconfigured (GstOMXPort * port)
