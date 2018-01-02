@@ -2478,7 +2478,8 @@ gst_omx_video_dec_set_format (GstVideoDecoder * decoder,
         mem = gst_buffer_new_allocate (NULL, 1024, NULL);
         gst_buffer_map (mem, &map_info, GST_MAP_READ);
 
-        gst_omx_port_update_port_definition (self->dec_in_port, NULL);
+	if (!gst_omx_port_ensure_buffer_count_actual (self->dec_in_port, "OMX_DECODER_INPUT_EXTRA_BUFFERS"))
+		return FALSE;
 
         for (i = 0; i < self->dec_in_port->port_def.nBufferCountActual; i++)
           buffer_list = g_list_append (buffer_list, map_info.data);

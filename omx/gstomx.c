@@ -2409,6 +2409,11 @@ gst_omx_port_ensure_buffer_count_actual (GstOMXPort * port,
 
   gst_omx_port_get_port_definition (port, &port_def);
 
+  if (!g_strcmp0(extra_env, "OMX_DECODER_INPUT_EXTRA_BUFFERS"))
+    extra = 3;
+  else if (!g_strcmp0(extra_env, "OMX_ENCODER_OUTPUT_EXTRA_BUFFERS"))
+    extra = 2;
+
   if (extra_env && g_getenv (extra_env)) {
     extra = atoi (g_getenv (extra_env));
 
