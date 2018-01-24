@@ -48,7 +48,7 @@ AG_GST_LIBTOOL_PREPARE
 AS_LIBTOOL(GST, 1300, 0, 1300)
 
 dnl *** required versions of GStreamer stuff ***
-GST_REQ=1.13.0.1
+GST_REQ=1.12.0
 
 dnl *** autotools stuff ****
 
