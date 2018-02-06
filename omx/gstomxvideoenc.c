@@ -201,6 +201,26 @@ gst_omx_video_enc_latency_mode_get_type ()
   return qtype;
 }
 
+#define GST_TYPE_OMX_VIDEO_ENC_ROI_QUALITY (gst_omx_video_enc_roi_quality_type ())
+static GType
+gst_omx_video_enc_roi_quality_type (void)
+{
+  static GType qtype = 0;
+
+  if (qtype == 0) {
+    static const GEnumValue values[] = {
+      {OMX_ALG_ROI_QUALITY_HIGH, "Delta QP of -5", "high"},
+      {OMX_ALG_ROI_QUALITY_MEDIUM, "Delta QP of 0", "medium"},
+      {OMX_ALG_ROI_QUALITY_LOW, "Delta QP of +5", "low"},
+      {OMX_ALG_ROI_QUALITY_DONT_CARE, "Maximum delta QP value", "dont-care"},
+      {0, NULL, NULL}
+    };
+
+    qtype = g_enum_register_static ("GstOMXVideoEncRoiQuality", values);
+  }
+  return qtype;
+}
+
 #endif
 
 /* prototypes */
@@ -260,6 +280,7 @@ enum
   PROP_DEPENDENT_SLICE,
   PROP_PREFETCH_BUFFER,
   PROP_LATENCY_MODE,
+  PROP_DEFAULT_ROI_QUALITY,
 };
 
 /* FIXME: Better defaults */
@@ -285,7 +306,7 @@ enum
 #define GST_OMX_VIDEO_ENC_DEPENDENT_SLICE_DEFAULT (FALSE)
 #define GST_OMX_VIDEO_ENC_PREFETCH_BUFFER_DEFAULT (0xffffffff)
 #define GST_OMX_VIDEO_ENC_LATENCY_MODE_DEFAULT (0xffffffff)
-
+#define GST_OMX_VIDEO_ENC_DEFAULT_ROI_QUALITY OMX_ALG_ROI_QUALITY_HIGH
 
 /* class initialization */
 #define do_init \
@@ -480,6 +501,13 @@ gst_omx_video_enc_class_init (GstOMXVideoEncClass * klass)
           GST_TYPE_OMX_VIDEO_ENC_LATENCY_MODE,
           GST_OMX_VIDEO_ENC_LATENCY_MODE_DEFAULT,
           G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
+
+  g_object_class_install_property (gobject_class, PROP_DEFAULT_ROI_QUALITY,
+      g_param_spec_enum ("default-roi-quality", "Default ROI Qualtiy",
+          "The default quality level to apply to each Region of Interest",
+          GST_TYPE_OMX_VIDEO_ENC_ROI_QUALITY,
+          GST_OMX_VIDEO_ENC_DEFAULT_ROI_QUALITY,
+          G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
 #endif
 
   element_class->change_state =
@@ -534,10 +562,16 @@ gst_omx_video_enc_init (GstOMXVideoEnc * self)
   self->dependent_slice = GST_OMX_VIDEO_ENC_DEPENDENT_SLICE_DEFAULT;
   self->prefetch_buffer = GST_OMX_VIDEO_ENC_PREFETCH_BUFFER_DEFAULT;
   self->latency_mode = GST_OMX_VIDEO_ENC_LATENCY_MODE_DEFAULT;
+  self->default_roi_quality = GST_OMX_VIDEO_ENC_DEFAULT_ROI_QUALITY;
 #endif
 
   g_mutex_init (&self->drain_lock);
   g_cond_init (&self->drain_cond);
+
+#ifdef USE_OMX_TARGET_ZYNQ_USCALE_PLUS
+  self->alg_roi_quality_enum_class =
+      g_type_class_ref (GST_TYPE_OMX_VIDEO_ENC_ROI_QUALITY);
+#endif
 }
 
 #ifdef USE_OMX_TARGET_ZYNQ_USCALE_PLUS
@@ -985,6 +1019,10 @@ gst_omx_video_enc_finalize (GObject * object)
   g_mutex_clear (&self->drain_lock);
   g_cond_clear (&self->drain_cond);
 
+#ifdef USE_OMX_TARGET_ZYNQ_USCALE_PLUS
+  g_clear_pointer (&self->alg_roi_quality_enum_class, g_type_class_unref);
+#endif
+
   G_OBJECT_CLASS (gst_omx_video_enc_parent_class)->finalize (object);
 }
 
@@ -1076,6 +1114,8 @@ gst_omx_video_enc_set_property (GObject * object, guint prop_id,
       break;
     case PROP_LATENCY_MODE:
       self->latency_mode = g_value_get_enum (value);
+    case PROP_DEFAULT_ROI_QUALITY:
+      self->default_roi_quality = g_value_get_enum (value);
       break;
 #endif
     default:
@@ -1157,6 +1197,8 @@ gst_omx_video_enc_get_property (GObject * object, guint prop_id, GValue * value,
       break;
     case PROP_LATENCY_MODE:
       g_value_set_enum (value, self->latency_mode);
+    case PROP_DEFAULT_ROI_QUALITY:
+      g_value_set_enum (value, self->default_roi_quality);
       break;
 #endif
     default:
@@ -2584,6 +2626,65 @@ done:
   return ret;
 }
 
+#ifdef USE_OMX_TARGET_ZYNQ_USCALE_PLUS
+static void
+handle_roi_metadata (GstOMXVideoEnc * self, GstBuffer * input)
+{
+  GstMeta *meta;
+  gpointer state = NULL;
+
+  while ((meta =
+          gst_buffer_iterate_meta_filtered (input, &state,
+              GST_VIDEO_REGION_OF_INTEREST_META_API_TYPE))) {
+    GstVideoRegionOfInterestMeta *roi = (GstVideoRegionOfInterestMeta *) meta;
+    OMX_ALG_VIDEO_CONFIG_REGION_OF_INTEREST roi_param;
+    GstStructure *s;
+
+    GST_LOG_OBJECT (self, "Input buffer ROI: type=%s id=%d (%d, %d) %dx%d",
+        g_quark_to_string (roi->roi_type), roi->id, roi->x, roi->y, roi->w,
+        roi->h);
+
+    GST_OMX_INIT_STRUCT (&roi_param);
+    roi_param.nPortIndex = self->enc_in_port->index;
+    roi_param.nLeft = roi->x;
+    roi_param.nTop = roi->y;
+    roi_param.nWidth = roi->w;
+    roi_param.nHeight = roi->h;
+
+    s = gst_video_region_of_interest_meta_get_param (roi, "roi/omx-alg");
+    if (s) {
+      const gchar *quality;
+      GEnumValue *evalue;
+
+      quality = gst_structure_get_string (s, "quality");
+
+      evalue =
+          g_enum_get_value_by_nick (self->alg_roi_quality_enum_class, quality);
+      if (!evalue) {
+        roi_param.eQuality = self->default_roi_quality;
+
+        GST_WARNING_OBJECT (self,
+            "Unknown ROI encoding quality '%s', use default (%d)",
+            quality, self->default_roi_quality);
+      } else {
+        roi_param.eQuality = evalue->value;
+
+        GST_LOG_OBJECT (self, "Use encoding quality '%s' from upstream",
+            quality);
+      }
+    } else {
+      roi_param.eQuality = self->default_roi_quality;
+
+      GST_LOG_OBJECT (self, "No quality specified upstream, use default (%d)",
+          self->default_roi_quality);
+    }
+
+    gst_omx_component_set_config (self->enc,
+        (OMX_INDEXTYPE) OMX_ALG_IndexConfigVideoRegionOfInterest, &roi_param);
+  }
+}
+#endif
+
 static GstFlowReturn
 gst_omx_video_enc_handle_frame (GstVideoEncoder * encoder,
     GstVideoCodecFrame * frame)
@@ -2752,6 +2853,9 @@ gst_omx_video_enc_handle_frame (GstVideoEncoder * encoder,
         GST_ERROR_OBJECT (self, "Failed to force a keyframe: %s (0x%08x)",
             gst_omx_error_to_string (err), err);
     }
+#ifdef USE_OMX_TARGET_ZYNQ_USCALE_PLUS
+    handle_roi_metadata (self, frame->input_buffer);
+#endif
 
     /* Copy the buffer content in chunks of size as requested
      * by the port */
