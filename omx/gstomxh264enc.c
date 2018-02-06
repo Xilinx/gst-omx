@@ -62,6 +62,7 @@ enum
   PROP_ENTROPY_MODE,
   PROP_CONSTRAINED_INTRA_PREDICTION,
   PROP_LOOP_FILTER_MODE,
+  PROP_GOP_LENGTH,
 };
 
 #ifdef USE_OMX_TARGET_RPI
@@ -69,7 +70,12 @@ enum
 #endif
 #define GST_OMX_H264_VIDEO_ENC_PERIODICITY_OF_IDR_FRAMES_DEFAULT    (0xffffffff)
 #define GST_OMX_H264_VIDEO_ENC_INTERVAL_OF_CODING_INTRA_FRAMES_DEFAULT (0xffffffff)
+#ifndef USE_OMX_TARGET_ZYNQ_USCALE_PLUS
 #define GST_OMX_H264_VIDEO_ENC_B_FRAMES_DEFAULT (0xffffffff)
+#else
+#define GST_OMX_H264_VIDEO_ENC_B_FRAMES_DEFAULT (0)
+#endif
+#define GST_OMX_H264_VIDEO_ENC_GOP_LENGTH_DEFAULT (30)
 #define GST_OMX_H264_VIDEO_ENC_ENTROPY_MODE_DEFAULT (0xffffffff)
 #define GST_OMX_H264_VIDEO_ENC_CONSTRAINED_INTRA_PREDICTION_DEFAULT (FALSE)
 #define GST_OMX_H264_VIDEO_ENC_LOOP_FILTER_MODE_DEFAULT (0xffffffff)
@@ -179,10 +185,24 @@ gst_omx_h264_enc_class_init (GstOMXH264EncClass * klass)
 
   g_object_class_install_property (gobject_class, PROP_B_FRAMES,
       g_param_spec_uint ("b-frames", "Number of B-frames",
+#ifndef USE_OMX_TARGET_ZYNQ_USCALE_PLUS
           "Number of B-frames between two consecutive I-frames (0xffffffff=component default)",
+#else
+          "Number of B-frames between two consecutive P-frames",
+#endif
           0, G_MAXUINT, GST_OMX_H264_VIDEO_ENC_B_FRAMES_DEFAULT,
           G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS |
           GST_PARAM_MUTABLE_READY));
+
+#ifdef USE_OMX_TARGET_ZYNQ_USCALE_PLUS
+  g_object_class_install_property (gobject_class, PROP_GOP_LENGTH,
+      g_param_spec_uint ("gop-length",
+          "Number of all frames in 1 GOP, Must be in multiple of (b-frames+1)",
+          "Distance between two consecutive I frames", 0,
+          1000, GST_OMX_H264_VIDEO_ENC_GOP_LENGTH_DEFAULT,
+          G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS |
+          GST_PARAM_MUTABLE_READY));
+#endif
 
   g_object_class_install_property (gobject_class, PROP_ENTROPY_MODE,
       g_param_spec_enum ("entropy-mode", "Entropy Mode",
@@ -249,6 +269,11 @@ gst_omx_h264_enc_set_property (GObject * object, guint prop_id,
     case PROP_B_FRAMES:
       self->b_frames = g_value_get_uint (value);
       break;
+#ifdef USE_OMX_TARGET_ZYNQ_USCALE_PLUS
+    case PROP_GOP_LENGTH:
+      self->gop_length = g_value_get_uint (value);
+      break;
+#endif
     case PROP_ENTROPY_MODE:
       self->entropy_mode = g_value_get_enum (value);
       break;
@@ -286,6 +311,11 @@ gst_omx_h264_enc_get_property (GObject * object, guint prop_id, GValue * value,
     case PROP_B_FRAMES:
       g_value_set_uint (value, self->b_frames);
       break;
+#ifdef USE_OMX_TARGET_ZYNQ_USCALE_PLUS
+    case PROP_GOP_LENGTH:
+      g_value_set_uint (value, self->gop_length);
+      break;
+#endif
     case PROP_ENTROPY_MODE:
       g_value_set_enum (value, self->entropy_mode);
       break;
@@ -313,6 +343,9 @@ gst_omx_h264_enc_init (GstOMXH264Enc * self)
   self->interval_intraframes =
       GST_OMX_H264_VIDEO_ENC_INTERVAL_OF_CODING_INTRA_FRAMES_DEFAULT;
   self->b_frames = GST_OMX_H264_VIDEO_ENC_B_FRAMES_DEFAULT;
+#ifdef USE_OMX_TARGET_ZYNQ_USCALE_PLUS
+  self->gop_length = GST_OMX_H264_VIDEO_ENC_GOP_LENGTH_DEFAULT;
+#endif
   self->entropy_mode = GST_OMX_H264_VIDEO_ENC_ENTROPY_MODE_DEFAULT;
   self->constrained_intra_prediction =
       GST_OMX_H264_VIDEO_ENC_CONSTRAINED_INTRA_PREDICTION_DEFAULT;
@@ -395,6 +428,10 @@ update_param_avc (GstOMXH264Enc * self,
 {
   OMX_VIDEO_PARAM_AVCTYPE param;
   OMX_ERRORTYPE err;
+#ifdef USE_OMX_TARGET_ZYNQ_USCALE_PLUS
+  guint32 p_frames;
+  guint32 b_frames;
+#endif
 
   GST_OMX_INIT_STRUCT (&param);
   param.nPortIndex = GST_OMX_VIDEO_ENC (self)->enc_out_port->index;
@@ -418,6 +455,7 @@ update_param_avc (GstOMXH264Enc * self,
   if (level != OMX_VIDEO_AVCLevelMax)
     param.eLevel = level;
 
+#ifndef USE_OMX_TARGET_ZYNQ_USCALE_PLUS
   /* GOP pattern */
   if (self->interval_intraframes !=
       GST_OMX_H264_VIDEO_ENC_INTERVAL_OF_CODING_INTRA_FRAMES_DEFAULT) {
@@ -448,6 +486,51 @@ update_param_avc (GstOMXH264Enc * self,
     }
     param.nBFrames = self->b_frames;
   }
+#else
+  /* As per some historical reasons, GopLength=0 should be treated as GopLength=1 only */
+  if (!self->gop_length)
+    self->gop_length = 1;
+
+  if (profile == OMX_VIDEO_AVCProfileBaseline && self->b_frames > 0) {
+    GST_ERROR_OBJECT (self,
+        "Baseline profile doesn't support B-frames (%u requested)",
+        self->b_frames);
+    return FALSE;
+  }
+
+  /* We will set OMX il's nPframes & nBframes parameter as below calculation
+     based on user's input of GopLength & NumBframes
+     nPframes(Number of P frames between each I frame) = GopLength/(NumBframes+1) - 1
+     nBframes(Number of B frames between each I frame) = GopLength - (nPframes+1)
+     NOTE: We have one constraint that user must provide GopLength in multiple of NumBframes+1.
+   */
+  if (self->gop_length % (self->b_frames + 1)) {
+    if (self->gop_length == 1) {
+      GST_LOG_OBJECT (self,
+          "GopLength is 1 so its only Intra. Setting b_frames as 0\n");
+      self->b_frames = 0;
+    } else {
+      GST_ERROR_OBJECT (self,
+          "GopLength should be in multiple of (b-frames + 1).Now setting it to default value");
+      g_warning
+          ("GopLength should be in multiple of (b-frames + 1).Now setting it to default value");
+      self->gop_length = GST_OMX_H264_VIDEO_ENC_GOP_LENGTH_DEFAULT;
+      self->b_frames = GST_OMX_H264_VIDEO_ENC_B_FRAMES_DEFAULT;
+    }
+  }
+
+  p_frames = ((self->gop_length) / (self->b_frames + 1)) - 1;
+  b_frames = self->gop_length - (p_frames + 1);
+
+  if (p_frames != param.nPFrames) {
+    GST_LOG_OBJECT (self, "Changing number of P-Frame to %d", p_frames);
+    param.nPFrames = p_frames;
+  }
+  if (b_frames != param.nBFrames) {
+    GST_LOG_OBJECT (self, "Changing number of B-Frame to %d", b_frames);
+    param.nBFrames = b_frames;
+  }
+#endif
 
   if (self->entropy_mode != GST_OMX_H264_VIDEO_ENC_ENTROPY_MODE_DEFAULT) {
     param.bEntropyCodingCABAC = self->entropy_mode;
