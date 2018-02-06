@@ -92,6 +92,7 @@ struct _GstOMXVideoEnc
   guint32 slice_size;
   gboolean dependent_slice;
   gint default_roi_quality;
+  gboolean prefetch_buffer;
 #endif
 
   guint32 default_target_bitrate;
