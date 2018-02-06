@@ -49,11 +49,13 @@ enum
   PROP_B_FRAMES,
   PROP_CONSTRAINED_INTRA_PREDICTION,
   PROP_LOOP_FILTER_MODE,
+  PROP_GOP_LENGTH,
 };
 
 #define GST_OMX_H265_VIDEO_ENC_PERIODICITY_OF_IDR_FRAMES_DEFAULT    (0xffffffff)
 #define GST_OMX_H265_VIDEO_ENC_INTERVAL_OF_CODING_INTRA_FRAMES_DEFAULT (0xffffffff)
-#define GST_OMX_H265_VIDEO_ENC_B_FRAMES_DEFAULT (0xffffffff)
+#define GST_OMX_H265_VIDEO_ENC_B_FRAMES_DEFAULT (0)
+#define GST_OMX_H265_VIDEO_ENC_GOP_LENGTH_DEFAULT (30)
 #define GST_OMX_H265_VIDEO_ENC_CONSTRAINED_INTRA_PREDICTION_DEFAULT (FALSE)
 #define GST_OMX_H265_VIDEO_ENC_LOOP_FILTER_MODE_DEFAULT (0xffffffff)
 
@@ -138,8 +140,16 @@ gst_omx_h265_enc_class_init (GstOMXH265EncClass * klass)
 
   g_object_class_install_property (gobject_class, PROP_B_FRAMES,
       g_param_spec_uint ("b-frames", "Number of B-frames",
-          "Number of B-frames between two consecutive I-frames (0xffffffff=component default)",
+          "Number of B-frames between two consecutive P-frames",
           0, G_MAXUINT, GST_OMX_H265_VIDEO_ENC_B_FRAMES_DEFAULT,
+          G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS |
+          GST_PARAM_MUTABLE_READY));
+
+  g_object_class_install_property (gobject_class, PROP_GOP_LENGTH,
+      g_param_spec_uint ("gop-length",
+          "Number of all frames in 1 GOP, Must be in multiple of (b-frames+1)",
+          "Distance between two consecutive I frames", 0,
+          1000, GST_OMX_H265_VIDEO_ENC_GOP_LENGTH_DEFAULT,
           G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS |
           GST_PARAM_MUTABLE_READY));
 
@@ -193,6 +203,9 @@ gst_omx_h265_enc_set_property (GObject * object, guint prop_id,
     case PROP_B_FRAMES:
       self->b_frames = g_value_get_uint (value);
       break;
+    case PROP_GOP_LENGTH:
+      self->gop_length = g_value_get_uint (value);
+      break;
     case PROP_CONSTRAINED_INTRA_PREDICTION:
       self->constrained_intra_prediction = g_value_get_boolean (value);
       break;
@@ -223,6 +236,9 @@ gst_omx_h265_enc_get_property (GObject * object, guint prop_id, GValue * value,
     case PROP_B_FRAMES:
       g_value_set_uint (value, self->b_frames);
       break;
+    case PROP_GOP_LENGTH:
+      g_value_set_uint (value, self->gop_length);
+      break;
     case PROP_CONSTRAINED_INTRA_PREDICTION:
       g_value_set_boolean (value, self->constrained_intra_prediction);
       break;
@@ -245,6 +261,7 @@ gst_omx_h265_enc_init (GstOMXH265Enc * self)
   self->periodicity_idr =
       GST_OMX_H265_VIDEO_ENC_PERIODICITY_OF_IDR_FRAMES_DEFAULT;
   self->b_frames = GST_OMX_H265_VIDEO_ENC_B_FRAMES_DEFAULT;
+  self->gop_length = GST_OMX_H265_VIDEO_ENC_GOP_LENGTH_DEFAULT;
   self->constrained_intra_prediction =
       GST_OMX_H265_VIDEO_ENC_CONSTRAINED_INTRA_PREDICTION_DEFAULT;
   self->loop_filter_mode = GST_OMX_H265_VIDEO_ENC_LOOP_FILTER_MODE_DEFAULT;
@@ -305,6 +322,8 @@ update_param_hevc (GstOMXH265Enc * self,
 {
 #ifdef USE_OMX_TARGET_ZYNQ_USCALE_PLUS
   OMX_ALG_VIDEO_PARAM_HEVCTYPE param;
+  guint32 p_frames;
+  guint32 b_frames;
 #else
   OMX_VIDEO_PARAM_HEVCTYPE param;
 #endif
@@ -355,31 +374,42 @@ update_param_hevc (GstOMXH265Enc * self,
 
   /* GOP pattern */
 #ifdef USE_OMX_TARGET_ZYNQ_USCALE_PLUS
-  /* The zynqultrascaleplus uses another PARAM_HEVCTYPE API allowing users to
-   * define the number of P and B frames while Android's API only expose the
-   * former. */
-  if (self->interval_intraframes !=
-      GST_OMX_H265_VIDEO_ENC_INTERVAL_OF_CODING_INTRA_FRAMES_DEFAULT) {
-    param.nPFrames = self->interval_intraframes;
+  /* As per some historical reasons, GopLength=0 should be treated as GopLength=1 only */
+  if (!self->gop_length)
+    self->gop_length = 1;
 
-    /* If user specified a specific number of B-frames, reduce the number of
-     * P-frames by this amount. If not ensure there is no B-frame to have the
-     * requested GOP length. */
-    if (self->b_frames != GST_OMX_H265_VIDEO_ENC_B_FRAMES_DEFAULT) {
-      if (self->b_frames > self->interval_intraframes) {
-        GST_ERROR_OBJECT (self,
-            "The interval_intraframes perdiod (%u) needs to be higher than the number of B-frames (%u)",
-            self->interval_intraframes, self->b_frames);
-        return FALSE;
-      }
-      param.nPFrames -= self->b_frames;
+  /* We will set OMX il's nPframes & nBframes parameter as below calculation
+     based on user's input of GopLength & NumBframes
+     nPframes(Number of P frames between each I frame) = GopLength/(NumBframes+1) - 1
+     nBframes(Number of B frames between each I frame) = GopLength - (nPframes+1)
+     NOTE: We have one constraint that user must provide GopLength in multiple of NumBframes+1.
+   */
+  if (self->gop_length % (self->b_frames + 1)) {
+    if (self->gop_length == 1) {
+      GST_LOG_OBJECT (self,
+          "GopLength is 1 so its only Intra. Setting b_frames as 0\n");
+      self->b_frames = 0;
     } else {
-      param.nBFrames = 0;
+      GST_ERROR_OBJECT (self,
+          "GopLength should be in multiple of (b-frames + 1).Now setting it to default value");
+      g_warning
+          ("GopLength should be in multiple of (b-frames + 1).Now setting it to default value");
+      self->gop_length = GST_OMX_H265_VIDEO_ENC_GOP_LENGTH_DEFAULT;
+      self->b_frames = GST_OMX_H265_VIDEO_ENC_B_FRAMES_DEFAULT;
     }
   }
 
-  if (self->b_frames != GST_OMX_H265_VIDEO_ENC_B_FRAMES_DEFAULT)
-    param.nBFrames = self->b_frames;
+  p_frames = ((self->gop_length) / (self->b_frames + 1)) - 1;
+  b_frames = self->gop_length - (p_frames + 1);
+
+  if (p_frames != param.nPFrames) {
+    GST_LOG_OBJECT (self, "Changing number of P-Frame to %d", p_frames);
+    param.nPFrames = p_frames;
+  }
+  if (b_frames != param.nBFrames) {
+    GST_LOG_OBJECT (self, "Changing number of B-Frame to %d", b_frames);
+    param.nBFrames = b_frames;
+  }
 #else
   if (self->interval_intraframes !=
       GST_OMX_H265_VIDEO_ENC_INTERVAL_OF_CODING_INTRA_FRAMES_DEFAULT)
