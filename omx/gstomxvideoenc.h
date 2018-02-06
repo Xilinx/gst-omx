@@ -92,6 +92,7 @@ struct _GstOMXVideoEnc
   guint32 slice_size;
   gboolean dependent_slice;
   guint32 prefetch_buffer;
+  guint32 latency_mode;
 #endif
 
   GstFlowReturn downstream_flow_ret;
