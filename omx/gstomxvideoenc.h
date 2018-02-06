@@ -91,6 +91,7 @@ struct _GstOMXVideoEnc
   guint32 num_slices;
   guint32 slice_size;
   gboolean dependent_slice;
+  guint32 prefetch_buffer;
 #endif
 
   GstFlowReturn downstream_flow_ret;
