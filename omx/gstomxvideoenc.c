@@ -261,6 +261,7 @@ enum
   PROP_SLICE_SIZE,
   PROP_DEPENDENT_SLICE,
   PROP_DEFAULT_ROI_QUALITY,
+  PROP_PREFETCH_BUFFER,
 };
 
 /* FIXME: Better defaults */
@@ -285,6 +286,7 @@ enum
 #define GST_OMX_VIDEO_ENC_SLICE_SIZE_DEFAULT (0)
 #define GST_OMX_VIDEO_ENC_DEPENDENT_SLICE_DEFAULT (FALSE)
 #define GST_OMX_VIDEO_ENC_DEFAULT_ROI_QUALITY OMX_ALG_ROI_QUALITY_HIGH
+#define GST_OMX_VIDEO_ENC_PREFETCH_BUFFER_DEFAULT (FALSE)
 
 /* class initialization */
 #define do_init \
@@ -472,6 +474,13 @@ gst_omx_video_enc_class_init (GstOMXVideoEncClass * klass)
           GST_TYPE_OMX_VIDEO_ENC_ROI_QUALITY,
           GST_OMX_VIDEO_ENC_DEFAULT_ROI_QUALITY,
           G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
+
+  g_object_class_install_property (gobject_class, PROP_PREFETCH_BUFFER,
+      g_param_spec_boolean ("prefetch-buffer", "L2Cache buffer",
+          "Enable/Disable L2Cache buffer in encoding process",
+          GST_OMX_VIDEO_ENC_PREFETCH_BUFFER_DEFAULT,
+          G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS |
+          GST_PARAM_MUTABLE_READY));
 #endif
 
   element_class->change_state =
@@ -526,6 +535,7 @@ gst_omx_video_enc_init (GstOMXVideoEnc * self)
   self->slice_size = GST_OMX_VIDEO_ENC_SLICE_SIZE_DEFAULT;
   self->dependent_slice = GST_OMX_VIDEO_ENC_DEPENDENT_SLICE_DEFAULT;
   self->default_roi_quality = GST_OMX_VIDEO_ENC_DEFAULT_ROI_QUALITY;
+  self->prefetch_buffer = GST_OMX_VIDEO_ENC_PREFETCH_BUFFER_DEFAULT;
 #endif
 
   self->default_target_bitrate = GST_OMX_PROP_OMX_DEFAULT;
@@ -751,6 +761,23 @@ set_zynqultrascaleplus_props (GstOMXVideoEnc * self)
         gst_omx_component_set_parameter (self->enc,
         (OMX_INDEXTYPE) OMX_ALG_IndexParamVideoSlices, &slices);
     CHECK_ERR ("slices");
+  }
+
+  {
+    OMX_ALG_VIDEO_PARAM_PREFETCH_BUFFER prefetch_buffer;
+
+    GST_OMX_INIT_STRUCT (&prefetch_buffer);
+    prefetch_buffer.nPortIndex = self->enc_out_port->index;
+    prefetch_buffer.bEnablePrefetchBuffer = self->prefetch_buffer;
+
+    GST_DEBUG_OBJECT (self, "setting prefetch buffer to %d",
+        self->prefetch_buffer);
+
+    err =
+        gst_omx_component_set_parameter (self->enc,
+        (OMX_INDEXTYPE) OMX_ALG_IndexParamVideoPrefetchBuffer,
+        &prefetch_buffer);
+    CHECK_ERR ("prefetch");
   }
 
   return TRUE;
@@ -1085,6 +1112,9 @@ gst_omx_video_enc_set_property (GObject * object, guint prop_id,
     case PROP_DEFAULT_ROI_QUALITY:
       self->default_roi_quality = g_value_get_enum (value);
       break;
+    case PROP_PREFETCH_BUFFER:
+      self->prefetch_buffer = g_value_get_boolean (value);
+      break;
 #endif
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
@@ -1164,6 +1194,9 @@ gst_omx_video_enc_get_property (GObject * object, guint prop_id, GValue * value,
       break;
     case PROP_DEFAULT_ROI_QUALITY:
       g_value_set_enum (value, self->default_roi_quality);
+      break;
+    case PROP_PREFETCH_BUFFER:
+      g_value_set_boolean (value, self->prefetch_buffer);
       break;
 #endif
     default:
