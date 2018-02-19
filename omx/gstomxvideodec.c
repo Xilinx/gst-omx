@@ -111,7 +111,7 @@ gst_omx_video_dec_latency_mode_get_type ()
       {LATENCY_MODE_NORMAL, "Normal mode", "normal"},
       {LATENCY_MODE_REDUCED, "Low ref dpb mode(reduced-latency)",
           "reduced-latency"},
-      {LATENCY_MODE_REDUCED, "Low latency mode", "low-latency"},
+      {LATENCY_MODE_LOW, "Low latency mode", "low-latency"},
 
       {0xffffffff, "Component Default", "default"},
       {0, NULL, NULL}
