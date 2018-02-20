@@ -192,16 +192,18 @@ gst_omx_h264_enc_class_init (GstOMXH264EncClass * klass)
 #endif
           0, G_MAXUINT, GST_OMX_H264_VIDEO_ENC_B_FRAMES_DEFAULT,
           G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS |
+#ifndef USE_OMX_TARGET_ZYNQ_USCALE_PLUS
           GST_PARAM_MUTABLE_READY));
+#else
+          GST_PARAM_MUTABLE_PLAYING));
 
-#ifdef USE_OMX_TARGET_ZYNQ_USCALE_PLUS
   g_object_class_install_property (gobject_class, PROP_GOP_LENGTH,
       g_param_spec_uint ("gop-length",
           "Number of all frames in 1 GOP, Must be in multiple of (b-frames+1)",
           "Distance between two consecutive I frames", 0,
           1000, GST_OMX_H264_VIDEO_ENC_GOP_LENGTH_DEFAULT,
           G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS |
-          GST_PARAM_MUTABLE_READY));
+          GST_PARAM_MUTABLE_PLAYING));
 #endif
 
   g_object_class_install_property (gobject_class, PROP_ENTROPY_MODE,
@@ -247,6 +249,61 @@ gst_omx_h264_enc_class_init (GstOMXH264EncClass * klass)
   gst_omx_set_default_role (&videoenc_class->cdata, "video_encoder.avc");
 }
 
+#ifdef USE_OMX_TARGET_ZYNQ_USCALE_PLUS
+/* Returns true if gop_length is multiple of (b-frames+1) */
+static gboolean
+validate_gop_param (GstOMXH264Enc * self)
+{
+  /* gop_length = 0 and 1 both represents Intra only encoding */
+  if (!self->gop_length)
+    self->gop_length = 1;
+
+  return !(self->gop_length % (self->b_frames + 1));
+}
+
+static void
+compute_gop_pattern (GstOMXH264Enc * self, guint * n_p_frames,
+    guint * n_b_frames)
+{
+  *n_p_frames = ((self->gop_length) / (self->b_frames + 1)) - 1;
+  *n_b_frames = self->gop_length - (*n_p_frames + 1);
+}
+
+static void
+update_config_video_gop (GstOMXH264Enc * self)
+{
+  OMX_ALG_VIDEO_CONFIG_GROUP_OF_PICTURES config;
+  OMX_ERRORTYPE err;
+
+  GST_OMX_INIT_STRUCT (&config);
+  config.nPortIndex = GST_OMX_VIDEO_ENC (self)->enc_out_port->index;
+
+  err =
+      gst_omx_component_get_config (GST_OMX_VIDEO_ENC (self)->enc,
+      (OMX_INDEXTYPE) OMX_ALG_IndexConfigVideoGroupOfPictures, &config);
+
+  if (err != OMX_ErrorNone)
+    GST_ERROR_OBJECT (self,
+        "Failed to get b-frames parameter: %s (0x%08x)",
+        gst_omx_error_to_string (err), err);
+
+  if (validate_gop_param (self)) {
+    compute_gop_pattern (self, &config.nPFrames, &config.nBFrames);
+    err =
+        gst_omx_component_set_config (GST_OMX_VIDEO_ENC (self)->enc,
+        (OMX_INDEXTYPE) OMX_ALG_IndexConfigVideoGroupOfPictures, &config);
+
+    if (err != OMX_ErrorNone)
+      GST_ERROR_OBJECT (self,
+          "Failed to set  parameter: %s (0x%08x)",
+          gst_omx_error_to_string (err), err);
+
+  } else
+    GST_ERROR_OBJECT (self,
+        "GOP structure is not updated because gop-length should be multiple of (b-frames + 1)");
+}
+#endif
+
 static void
 gst_omx_h264_enc_set_property (GObject * object, guint prop_id,
     const GValue * value, GParamSpec * pspec)
@@ -268,10 +325,16 @@ gst_omx_h264_enc_set_property (GObject * object, guint prop_id,
       break;
     case PROP_B_FRAMES:
       self->b_frames = g_value_get_uint (value);
+#ifdef USE_OMX_TARGET_ZYNQ_USCALE_PLUS
+      if (GST_OMX_VIDEO_ENC (self)->enc)
+        update_config_video_gop (self);
+#endif
       break;
 #ifdef USE_OMX_TARGET_ZYNQ_USCALE_PLUS
     case PROP_GOP_LENGTH:
       self->gop_length = g_value_get_uint (value);
+      if (GST_OMX_VIDEO_ENC (self)->enc)
+        update_config_video_gop (self);
       break;
 #endif
     case PROP_ENTROPY_MODE:
@@ -487,9 +550,6 @@ update_param_avc (GstOMXH264Enc * self,
     param.nBFrames = self->b_frames;
   }
 #else
-  /* As per some historical reasons, GopLength=0 should be treated as GopLength=1 only */
-  if (!self->gop_length)
-    self->gop_length = 1;
 
   if (profile == OMX_VIDEO_AVCProfileBaseline && self->b_frames > 0) {
     GST_ERROR_OBJECT (self,
@@ -504,7 +564,7 @@ update_param_avc (GstOMXH264Enc * self,
      nBframes(Number of B frames between each I frame) = GopLength - (nPframes+1)
      NOTE: We have one constraint that user must provide GopLength in multiple of NumBframes+1.
    */
-  if (self->gop_length % (self->b_frames + 1)) {
+  if (!validate_gop_param (self)) {
     if (self->gop_length == 1) {
       GST_LOG_OBJECT (self,
           "GopLength is 1 so its only Intra. Setting b_frames as 0\n");
@@ -519,8 +579,7 @@ update_param_avc (GstOMXH264Enc * self,
     }
   }
 
-  p_frames = ((self->gop_length) / (self->b_frames + 1)) - 1;
-  b_frames = self->gop_length - (p_frames + 1);
+  compute_gop_pattern (self, &p_frames, &b_frames);
 
   if (p_frames != param.nPFrames) {
     GST_LOG_OBJECT (self, "Changing number of P-Frame to %d", p_frames);
