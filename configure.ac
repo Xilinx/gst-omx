@@ -468,6 +468,7 @@ config/tizonia/Makefile
 config/zynqultrascaleplus/Makefile
 examples/Makefile
 examples/egl/Makefile
+examples/zynqultrascaleplus/Makefile
 m4/Makefile
 tests/Makefile
 tests/check/Makefile
