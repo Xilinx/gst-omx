@@ -45,6 +45,7 @@
 #define DYNAMIC_B_FRAMES_STR "BFrm"
 #define DYNAMIC_ROI_STR "ROI"
 #define DYNAMIC_KEY_FRAME_STR "KF"
+#define DYNAMIC_SCENE_CHANGE_STR "SC"
 
 #define DYNAMIC_FEATURE_DELIMIT ","
 #define DYNAMIC_PARAM_DELIMIT ":x"
@@ -57,6 +58,7 @@ typedef enum
   DYNAMIC_KEY_FRAME,
   DYNAMIC_B_FRAMES,
   DYNAMIC_ROI,
+  DYNAMIC_SCENE_CHANGE,
 } DynamicFeatureType;
 
 typedef struct
@@ -112,6 +114,8 @@ get_dynamic_str_enum (gchar * user_string)
     return DYNAMIC_B_FRAMES;
   else if (!g_strcmp0 (user_string, DYNAMIC_ROI_STR))
     return DYNAMIC_ROI;
+  else if (!g_strcmp0 (user_string, DYNAMIC_SCENE_CHANGE_STR))
+    return DYNAMIC_SCENE_CHANGE;
   else {
     g_print ("Invalid User string \n");
     return -1;
@@ -203,6 +207,10 @@ parse_dynamic_user_string (const char *str, GstElement * encoder)
       /* set encoder qp-mode to ROI */
       g_object_set (G_OBJECT (encoder), "qp-mode", OMX_ALG_ROI_QP, NULL);
       break;
+    case DYNAMIC_SCENE_CHANGE:
+      dynamic->start_frame = atoi (token[1]);
+      dynamic->param.value = atoi (token[2]);
+      break;
     default:
       g_print ("Invalid DynamicFeatureType \n");
       g_strfreev (token);
@@ -270,6 +278,27 @@ videoparser_src_buffer_probe (GstPad * pad, GstPadProbeInfo * info,
         gst_video_region_of_interest_meta_add_param (meta,
             gst_structure_new ("roi/omx-alg",
                 "quality", G_TYPE_STRING, dynamic->param.roi.quality, NULL));
+        break;
+      case DYNAMIC_SCENE_CHANGE:
+      {
+        GstEvent *event;
+        GstStructure *s;
+        GstPad *peer;
+
+        g_print ("Scene change at Frame num = %d in %d frames\n",
+            dynamic->start_frame, dynamic->param.value);
+
+        s = gst_structure_new ("omx-alg/scene-change",
+            "look-ahead", G_TYPE_UINT, dynamic->param.value, NULL);
+
+        event = gst_event_new_custom (GST_EVENT_CUSTOM_DOWNSTREAM, s);
+        peer = gst_pad_get_peer (pad);
+
+        if (!gst_pad_send_event (peer, event))
+          g_printerr ("Failed to send scene-change event\n");
+
+        gst_object_unref (peer);
+      }
         break;
       default:
         g_print ("Invalid Dynamic String \n");
