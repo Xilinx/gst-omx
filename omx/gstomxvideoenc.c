@@ -258,6 +258,9 @@ static GstFlowReturn gst_omx_video_enc_drain (GstOMXVideoEnc * self);
 static GstFlowReturn gst_omx_video_enc_handle_output_frame (GstOMXVideoEnc *
     self, GstOMXPort * port, GstOMXBuffer * buf, GstVideoCodecFrame * frame);
 
+static gboolean gst_omx_video_enc_sink_event (GstVideoEncoder * encoder,
+    GstEvent * event);
+
 enum
 {
   PROP_0,
@@ -529,6 +532,8 @@ gst_omx_video_enc_class_init (GstOMXVideoEncClass * klass)
   video_encoder_class->propose_allocation =
       GST_DEBUG_FUNCPTR (gst_omx_video_enc_propose_allocation);
   video_encoder_class->getcaps = GST_DEBUG_FUNCPTR (gst_omx_video_enc_getcaps);
+  video_encoder_class->sink_event =
+      GST_DEBUG_FUNCPTR (gst_omx_video_enc_sink_event);
 
   klass->cdata.type = GST_OMX_COMPONENT_TYPE_FILTER;
   klass->cdata.default_sink_template_caps = "video/x-raw, "
@@ -3202,4 +3207,69 @@ gst_omx_video_enc_getcaps (GstVideoEncoder * encoder, GstCaps * filter)
   GST_LOG_OBJECT (encoder, "Supported caps %" GST_PTR_FORMAT, ret);
 
   return ret;
+}
+
+#ifdef USE_OMX_TARGET_ZYNQ_USCALE_PLUS
+static gboolean
+handle_scene_change_event (GstOMXVideoEnc * self, GstEvent * event)
+{
+  guint look_ahead;
+  const GstStructure *s;
+  OMX_ALG_VIDEO_CONFIG_NOTIFY_SCENE_CHANGE sc;
+  OMX_ERRORTYPE err;
+
+  s = gst_event_get_structure (event);
+
+  if (!gst_structure_get_uint (s, "look-ahead", &look_ahead)) {
+    GST_WARNING_OBJECT (self,
+        "missing look-ahead field in scene-change event; ignoring");
+    return FALSE;
+  }
+
+  GST_LOG_OBJECT (self, "received scene-change event (look-ahead: %d)",
+      look_ahead);
+
+  GST_OMX_INIT_STRUCT (&sc);
+  sc.nPortIndex = self->enc_in_port->index;
+  sc.nLookAhead = look_ahead;
+  err =
+      gst_omx_component_set_config (self->enc,
+      (OMX_INDEXTYPE) OMX_ALG_IndexConfigVideoNotifySceneChange, &sc);
+
+  if (err != OMX_ErrorNone)
+    GST_ERROR_OBJECT (self,
+        "Failed to notify scene change: %s (0x%08x)",
+        gst_omx_error_to_string (err), err);
+
+  return TRUE;
+}
+#endif
+
+static gboolean
+gst_omx_video_enc_sink_event (GstVideoEncoder * encoder, GstEvent * event)
+{
+#ifdef USE_OMX_TARGET_ZYNQ_USCALE_PLUS
+  GstOMXVideoEnc *self = GST_OMX_VIDEO_ENC (encoder);
+#endif
+
+  switch (GST_EVENT_TYPE (event)) {
+#ifdef USE_OMX_TARGET_ZYNQ_USCALE_PLUS
+    case GST_EVENT_CUSTOM_DOWNSTREAM:
+    {
+      const GstStructure *s;
+
+      s = gst_event_get_structure (event);
+      if (g_str_equal (gst_structure_get_name (s), "omx-alg/scene-change"))
+        handle_scene_change_event (self, event);
+
+      return TRUE;
+    }
+#endif
+    default:
+      break;
+  }
+
+  return
+      GST_VIDEO_ENCODER_CLASS (gst_omx_video_enc_parent_class)->sink_event
+      (encoder, event);
 }
