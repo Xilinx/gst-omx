@@ -3395,6 +3395,42 @@ gst_omx_video_enc_getcaps (GstVideoEncoder * encoder, GstCaps * filter)
   return ret;
 }
 
+#ifdef USE_OMX_TARGET_ZYNQ_USCALE_PLUS
+static gboolean
+handle_scene_change_event (GstOMXVideoEnc * self, GstEvent * event)
+{
+  guint look_ahead;
+  const GstStructure *s;
+  OMX_ALG_VIDEO_CONFIG_NOTIFY_SCENE_CHANGE sc;
+  OMX_ERRORTYPE err;
+
+  s = gst_event_get_structure (event);
+
+  if (!gst_structure_get_uint (s, "look-ahead", &look_ahead)) {
+    GST_WARNING_OBJECT (self,
+        "missing look-ahead field in scene-change event; ignoring");
+    return FALSE;
+  }
+
+  GST_LOG_OBJECT (self, "received scene-change event (look-ahead: %d)",
+      look_ahead);
+
+  GST_OMX_INIT_STRUCT (&sc);
+  sc.nPortIndex = self->enc_in_port->index;
+  sc.nLookAhead = look_ahead;
+  err =
+      gst_omx_component_set_config (self->enc,
+      (OMX_INDEXTYPE) OMX_ALG_IndexConfigVideoNotifySceneChange, &sc);
+
+  if (err != OMX_ErrorNone)
+    GST_ERROR_OBJECT (self,
+        "Failed to notify scene change: %s (0x%08x)",
+        gst_omx_error_to_string (err), err);
+
+  return TRUE;
+}
+#endif
+
 static gboolean
 gst_omx_video_enc_sink_event (GstVideoEncoder * encoder, GstEvent * event)
 {
@@ -3420,6 +3456,10 @@ gst_omx_video_enc_sink_event (GstVideoEncoder * encoder, GstEvent * event)
         gst_event_unref (event);
         return TRUE;
       }
+#ifdef USE_OMX_TARGET_ZYNQ_USCALE_PLUS
+      else if (gst_event_has_name (event, OMX_ALG_GST_EVENT_SCENE_CHANGE))
+        handle_scene_change_event (self, event);
+#endif
     }
 
     default:
