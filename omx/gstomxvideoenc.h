@@ -91,7 +91,7 @@ struct _GstOMXVideoEnc
   guint32 num_slices;
   guint32 slice_size;
   gboolean dependent_slice;
-  guint32 prefetch_buffer;
+  gboolean prefetch_buffer;
   guint32 latency_mode;
   gint default_roi_quality;
 #endif

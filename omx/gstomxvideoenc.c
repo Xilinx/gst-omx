@@ -307,7 +307,7 @@ enum
 #define GST_OMX_VIDEO_ENC_NUM_SLICES_DEFAULT (0xffffffff)
 #define GST_OMX_VIDEO_ENC_SLICE_SIZE_DEFAULT (0)
 #define GST_OMX_VIDEO_ENC_DEPENDENT_SLICE_DEFAULT (FALSE)
-#define GST_OMX_VIDEO_ENC_PREFETCH_BUFFER_DEFAULT (0xffffffff)
+#define GST_OMX_VIDEO_ENC_PREFETCH_BUFFER_DEFAULT (FALSE)
 #define GST_OMX_VIDEO_ENC_LATENCY_MODE_DEFAULT (0xffffffff)
 #define GST_OMX_VIDEO_ENC_DEFAULT_ROI_QUALITY OMX_ALG_ROI_QUALITY_HIGH
 
@@ -492,9 +492,9 @@ gst_omx_video_enc_class_init (GstOMXVideoEncClass * klass)
           G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
 
   g_object_class_install_property (gobject_class, PROP_PREFETCH_BUFFER,
-      g_param_spec_uint ("prefetch-buffer-size", "Value of L2Cache buffer size",
-          "Value of encoder L2Cache buffer size in KB (0xffffffff=component default)",
-          0, G_MAXUINT, GST_OMX_VIDEO_ENC_PREFETCH_BUFFER_DEFAULT,
+      g_param_spec_boolean ("prefetch-buffer", "L2Cache buffer",
+          "Enable/Disable L2Cache buffer in encoding process",
+          GST_OMX_VIDEO_ENC_PREFETCH_BUFFER_DEFAULT,
           G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS |
           GST_PARAM_MUTABLE_READY));
 
@@ -788,9 +788,9 @@ set_zynqultrascaleplus_props (GstOMXVideoEnc * self)
 
     GST_OMX_INIT_STRUCT (&prefetch_buffer);
     prefetch_buffer.nPortIndex = self->enc_out_port->index;
-    prefetch_buffer.nPrefetchBufferSize = self->prefetch_buffer;
+    prefetch_buffer.bEnablePrefetchBuffer = self->prefetch_buffer;
 
-    GST_DEBUG_OBJECT (self, "setting prefetch buffer size %d",
+    GST_DEBUG_OBJECT (self, "setting prefetch buffer to %d",
         self->prefetch_buffer);
 
     err =
@@ -1119,7 +1119,7 @@ gst_omx_video_enc_set_property (GObject * object, guint prop_id,
       self->dependent_slice = g_value_get_boolean (value);
       break;
     case PROP_PREFETCH_BUFFER:
-      self->prefetch_buffer = g_value_get_uint (value);
+      self->prefetch_buffer = g_value_get_boolean (value);
       break;
     case PROP_LATENCY_MODE:
       self->latency_mode = g_value_get_enum (value);
@@ -1202,7 +1202,7 @@ gst_omx_video_enc_get_property (GObject * object, guint prop_id, GValue * value,
       g_value_set_boolean (value, self->dependent_slice);
       break;
     case PROP_PREFETCH_BUFFER:
-      g_value_set_uint (value, self->prefetch_buffer);
+      g_value_set_boolean (value, self->prefetch_buffer);
       break;
     case PROP_LATENCY_MODE:
       g_value_set_enum (value, self->latency_mode);
