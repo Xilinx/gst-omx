@@ -1968,6 +1968,7 @@ gst_omx_video_enc_configure_input_buffer (GstOMXVideoEnc * self,
           ((port_def.format.video.nFrameHeight + 1) / 2));
       break;
 
+    case OMX_COLOR_FormatYUV422SemiPlanar:
 #ifdef USE_OMX_TARGET_ZYNQ_USCALE_PLUS
       /* Formats defined in extensions have their own enum so disable to -Wswitch warning */
 #pragma GCC diagnostic push
@@ -2318,6 +2319,9 @@ gst_omx_video_enc_set_format (GstVideoEncoder * encoder,
       case GST_VIDEO_FORMAT_NV12:
         port_def.format.video.eColorFormat = OMX_COLOR_FormatYUV420SemiPlanar;
         break;
+      case GST_VIDEO_FORMAT_NV16:
+        port_def.format.video.eColorFormat = OMX_COLOR_FormatYUV422SemiPlanar;
+        break;
       case GST_VIDEO_FORMAT_ABGR:
         port_def.format.video.eColorFormat = OMX_COLOR_Format32bitARGB8888;
         break;
@@ -2473,8 +2477,8 @@ gst_omx_video_enc_flush (GstVideoEncoder * encoder)
 }
 
 static gboolean
-gst_omx_video_enc_nv12_manual_copy (GstOMXVideoEnc * self, GstBuffer * inbuf,
-    GstOMXBuffer * outbuf, gboolean variant_10)
+gst_omx_video_enc_semi_planar_manual_copy (GstOMXVideoEnc * self,
+    GstBuffer * inbuf, GstOMXBuffer * outbuf, gboolean variant_10)
 {
   GstVideoInfo *info = &self->input_state->info;
   OMX_PARAM_PORTDEFINITIONTYPE *port_def = &self->enc_in_port->port_def;
@@ -2665,11 +2669,15 @@ gst_omx_video_enc_fill_buffer (GstOMXVideoEnc * self, GstBuffer * inbuf,
       break;
     }
     case GST_VIDEO_FORMAT_NV12:
-      ret = gst_omx_video_enc_nv12_manual_copy (self, inbuf, outbuf, FALSE);
+    case GST_VIDEO_FORMAT_NV16:
+      ret =
+          gst_omx_video_enc_semi_planar_manual_copy (self, inbuf, outbuf,
+          FALSE);
       break;
     case GST_VIDEO_FORMAT_NV12_10LE32:
     case GST_VIDEO_FORMAT_NV16_10LE32:
-      ret = gst_omx_video_enc_nv12_manual_copy (self, inbuf, outbuf, TRUE);
+      ret =
+          gst_omx_video_enc_semi_planar_manual_copy (self, inbuf, outbuf, TRUE);
       break;
     default:
       GST_ERROR_OBJECT (self, "Unsupported format");
@@ -3135,6 +3143,7 @@ filter_supported_formats (GList * negotiation_map)
       case GST_VIDEO_FORMAT_I420:
       case GST_VIDEO_FORMAT_NV12:
       case GST_VIDEO_FORMAT_NV12_10LE32:
+      case GST_VIDEO_FORMAT_NV16:
       case GST_VIDEO_FORMAT_NV16_10LE32:
         //case GST_VIDEO_FORMAT_ABGR:
         //case GST_VIDEO_FORMAT_ARGB:
