@@ -2004,7 +2004,7 @@ gst_omx_video_enc_configure_input_buffer (GstOMXVideoEnc * self,
 static gboolean
 gst_omx_video_enc_allocate_in_buffers (GstOMXVideoEnc * self)
 {
-  if (!gst_omx_port_ensure_buffer_count_actual (self->enc_in_port, 0))
+  if (!gst_omx_port_ensure_buffer_count_actual (self->enc_in_port, 1))
     return FALSE;
 
   switch (self->input_allocation) {
