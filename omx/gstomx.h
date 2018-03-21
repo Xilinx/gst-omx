@@ -453,6 +453,8 @@ gboolean          gst_omx_port_is_enabled (GstOMXPort * port);
 gboolean          gst_omx_port_ensure_buffer_count_actual (GstOMXPort * port, guint extra);
 gboolean          gst_omx_port_update_buffer_count_actual (GstOMXPort * port, guint nb);
 
+gboolean          gst_omx_port_set_dmabuf (GstOMXPort * port, gboolean dmabuf);
+
 /* OMX 1.2.0 dynamic allocation mode */
 gboolean          gst_omx_is_dynamic_allocation_supported (void);
 OMX_ERRORTYPE     gst_omx_port_use_dynamic_buffers (GstOMXPort * port);
