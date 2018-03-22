@@ -1535,8 +1535,19 @@ gst_omx_video_enc_ensure_nb_out_buffers (GstOMXVideoEnc * self)
 static gboolean
 gst_omx_video_enc_allocate_out_buffers (GstOMXVideoEnc * self)
 {
+  GstEvent *event;
+  guint nb_buffers;
+
   if (gst_omx_port_allocate_buffers (self->enc_out_port) != OMX_ErrorNone)
     return FALSE;
+
+  nb_buffers = self->enc_out_port->port_def.nBufferCountActual;
+
+  event = gst_event_new_custom (GST_EVENT_CUSTOM_DOWNSTREAM,
+      gst_structure_new ("buffers-allocated",
+          "nb-buffers", G_TYPE_UINT, nb_buffers, NULL));
+
+  gst_pad_push_event (GST_VIDEO_DECODER_SRC_PAD (self), event);
 
   return TRUE;
 }
