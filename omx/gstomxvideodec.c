@@ -1172,7 +1172,16 @@ gst_omx_video_dec_allocate_output_buffers (GstOMXVideoDec * self)
       gst_object_unref (self->out_port_pool);
       self->out_port_pool = NULL;
     } else {
+      GstEvent *event;
+
       GST_OMX_BUFFER_POOL (self->out_port_pool)->allocating = FALSE;
+
+      event = gst_event_new_custom (GST_EVENT_CUSTOM_DOWNSTREAM,
+          gst_structure_new ("buffers-allocated",
+              "nb-buffers", G_TYPE_UINT, min,
+              "pool", GST_TYPE_BUFFER_POOL, self->out_port_pool, NULL));
+
+      gst_pad_push_event (GST_VIDEO_DECODER_SRC_PAD (self), event);
     }
   } else if (self->out_port_pool) {
     gst_object_unref (self->out_port_pool);
