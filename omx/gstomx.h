@@ -451,6 +451,7 @@ OMX_ERRORTYPE     gst_omx_port_set_enabled (GstOMXPort * port, gboolean enabled)
 OMX_ERRORTYPE     gst_omx_port_wait_enabled (GstOMXPort * port, GstClockTime timeout);
 gboolean          gst_omx_port_is_enabled (GstOMXPort * port);
 gboolean          gst_omx_port_ensure_buffer_count_actual (GstOMXPort * port, guint extra);
+gboolean          gst_omx_port_update_buffer_count_actual (GstOMXPort * port, guint nb);
 
 /* OMX 1.2.0 dynamic allocation mode */
 gboolean          gst_omx_is_dynamic_allocation_supported (void);

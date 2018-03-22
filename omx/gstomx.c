@@ -2526,6 +2526,34 @@ gst_omx_port_ensure_buffer_count_actual (GstOMXPort * port, guint extra)
   return TRUE;
 }
 
+gboolean
+gst_omx_port_update_buffer_count_actual (GstOMXPort * port, guint nb)
+{
+  OMX_PARAM_PORTDEFINITIONTYPE port_def;
+
+  gst_omx_port_get_port_definition (port, &port_def);
+
+  if (nb < port_def.nBufferCountMin) {
+    GST_DEBUG_OBJECT (port->comp->parent,
+        "Requested to use %d buffers on port %d but it's minimum is %d", nb,
+        (guint) port->index, (guint) port_def.nBufferCountMin);
+
+    nb = port_def.nBufferCountMin;
+  }
+
+  if (port_def.nBufferCountActual != nb) {
+    port_def.nBufferCountActual = nb;
+
+    GST_DEBUG_OBJECT (port->comp->parent,
+        "set port %d nBufferCountActual to %d", (guint) port->index, nb);
+
+    if (gst_omx_port_update_port_definition (port, &port_def) != OMX_ErrorNone)
+      return FALSE;
+  }
+
+  return TRUE;
+}
+
 /* NOTE: Uses comp->lock and comp->messages_lock */
 OMX_ERRORTYPE
 gst_omx_port_mark_reconfigured (GstOMXPort * port)

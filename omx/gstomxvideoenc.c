@@ -1789,6 +1789,7 @@ gst_omx_video_enc_start (GstVideoEncoder * encoder)
 
   self->last_upstream_ts = 0;
   self->downstream_flow_ret = GST_FLOW_OK;
+  self->nb_upstream_buffers = 0;
 
   return TRUE;
 }
@@ -2026,7 +2027,16 @@ gst_omx_video_enc_configure_input_buffer (GstOMXVideoEnc * self,
 static gboolean
 gst_omx_video_enc_ensure_nb_in_buffers (GstOMXVideoEnc * self)
 {
-  if (!gst_omx_port_ensure_buffer_count_actual (self->enc_in_port, 1))
+  if (self->input_allocation == GST_OMX_BUFFER_ALLOCATION_USE_BUFFER_DYNAMIC &&
+      self->nb_upstream_buffers > self->enc_in_port->port_def.nBufferCountMin) {
+    GST_DEBUG_OBJECT (self,
+        "Upstream allocated %d buffers, allocate as many input buffers as we are using dynamic buffer mode",
+        self->nb_upstream_buffers);
+
+    if (!gst_omx_port_update_buffer_count_actual (self->enc_in_port,
+            self->nb_upstream_buffers))
+      return FALSE;
+  } else if (!gst_omx_port_ensure_buffer_count_actual (self->enc_in_port, 0))
     return FALSE;
 
   return TRUE;
@@ -3273,20 +3283,34 @@ handle_scene_change_event (GstOMXVideoEnc * self, GstEvent * event)
 static gboolean
 gst_omx_video_enc_sink_event (GstVideoEncoder * encoder, GstEvent * event)
 {
-#ifdef USE_OMX_TARGET_ZYNQ_USCALE_PLUS
   GstOMXVideoEnc *self = GST_OMX_VIDEO_ENC (encoder);
-#endif
 
   switch (GST_EVENT_TYPE (event)) {
-#ifdef USE_OMX_TARGET_ZYNQ_USCALE_PLUS
     case GST_EVENT_CUSTOM_DOWNSTREAM:
     {
+#ifdef USE_OMX_TARGET_ZYNQ_USCALE_PLUS
       if (gst_event_has_name (event, "omx-alg/scene-change"))
         handle_scene_change_event (self, event);
-
-      return TRUE;
-    }
 #endif
+
+      if (gst_event_has_name (event, "buffers-allocated")) {
+        const GstStructure *s;
+
+        s = gst_event_get_structure (event);
+        if (!gst_structure_get_uint (s, "nb-buffers",
+                &self->nb_upstream_buffers)) {
+          GST_WARNING_OBJECT (self,
+              "buffers-allocated event missing 'nb-buffers' field");
+          return TRUE;
+        } else {
+          GST_DEBUG_OBJECT (self, "Upstream allocated %d buffers",
+              self->nb_upstream_buffers);
+        }
+
+        return TRUE;
+      }
+    }
+
     default:
       break;
   }
