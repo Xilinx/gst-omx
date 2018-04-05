@@ -3107,8 +3107,16 @@ gst_omx_video_dec_handle_frame (GstVideoDecoder * decoder,
      *     the segment
      */
 
-    if (done)
-      buf->omx_buf->nFlags |= OMX_BUFFERFLAG_ENDOFFRAME;
+    if (done) {
+#ifdef USE_OMX_TARGET_ZYNQ_USCALE_PLUS
+      /* If the input buffer is a subframe mark the OMX buffer as such */
+      if (GST_BUFFER_FLAG_IS_SET (frame->input_buffer,
+              GST_OMX_BUFFER_FLAG_SUBFRAME))
+        buf->omx_buf->nFlags |= OMX_BUFFERFLAG_ENDOFSUBFRAME;
+      else
+#endif
+        buf->omx_buf->nFlags |= OMX_BUFFERFLAG_ENDOFFRAME;
+    }
 
     self->started = TRUE;
     err = gst_omx_port_release_buffer (port, buf);
