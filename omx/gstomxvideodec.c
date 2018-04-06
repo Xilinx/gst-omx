@@ -2213,7 +2213,7 @@ gst_omx_video_dec_negotiate (GstOMXVideoDec * self)
 
 #ifdef USE_OMX_TARGET_ZYNQ_USCALE_PLUS
 static void
-gst_omx_video_dec_set_latency (GstOMXVideoDec * self)
+gst_omx_video_dec_set_latency (GstOMXVideoDec * self, GstVideoInfo *info)
 {
   GstClockTime latency;
   OMX_ALG_PARAM_REPORTED_LATENCY param;
@@ -2232,6 +2232,13 @@ gst_omx_video_dec_set_latency (GstOMXVideoDec * self)
 
   GST_DEBUG_OBJECT (self, "retrieved latency of %d ms",
       (guint32) param.nLatency);
+
+  /* HACK: In Low latency mode decoding, add 1 frame of latency*/
+  if (self->latency_mode == LATENCY_MODE_LOW) {
+        param.nLatency += (info->fps_d * 1000)/info->fps_n;
+        GST_DEBUG_OBJECT (self, "In low latency mode setting %d ms latency",
+            (guint32) param.nLatency);
+  }
 
   /* Convert to ns */
   latency = param.nLatency * GST_MSECOND;
@@ -2693,7 +2700,7 @@ gst_omx_video_dec_set_format (GstVideoDecoder * decoder,
   self->input_state = gst_video_codec_state_ref (state);
 
 #ifdef USE_OMX_TARGET_ZYNQ_USCALE_PLUS
-  gst_omx_video_dec_set_latency (self);
+  gst_omx_video_dec_set_latency (self, info);
 #endif
 
   self->downstream_flow_ret = GST_FLOW_OK;
