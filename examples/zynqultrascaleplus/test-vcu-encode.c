@@ -313,7 +313,9 @@ int
 main (int argc, char *argv[])
 {
   GMainLoop *loop;
-  GstElement *pipeline, *source, *sink, *encoder, *videoparse, *enc_queue;
+  GstElement *pipeline, *source, *sink, *encoder, *videoparse, *enc_queue,
+      *enc_capsfilter;
+  GstCaps *enc_caps;
   GstPad *pad;
   GstBus *bus;
   GError *error = NULL;
@@ -393,10 +395,13 @@ main (int argc, char *argv[])
   else
     encoder = gst_element_factory_make ("omxh265enc", "OMX H265 Encoder");
 
+  enc_capsfilter =
+      gst_element_factory_make ("capsfilter", "Encoder output caps");
   enc_queue = gst_element_factory_make ("queue", "Encoder Queue");
   sink = gst_element_factory_make ("filesink", "File Sink");
 
-  if (!pipeline || !source || !sink || !videoparse || !encoder || !enc_queue) {
+  if (!pipeline || !source || !sink || !videoparse || !encoder || !enc_queue
+      || !enc_capsfilter) {
     g_printerr ("elements could not be created \n");
     return -1;
   }
@@ -408,6 +413,18 @@ main (int argc, char *argv[])
   g_object_set (G_OBJECT (encoder), "target-bitrate", enc.target_bitrate,
       "b-frames", enc.b_frames, "control-rate", enc.control_rate, "gop-length",
       enc.gop_length, NULL);
+
+  /* set Encoder src caps */
+  if (!g_strcmp0 (enc.type, "avc"))
+    enc_caps =
+        gst_caps_new_simple ("video/x-h264", "profile", G_TYPE_STRING, "high",
+        NULL);
+  else
+    enc_caps =
+        gst_caps_new_simple ("video/x-h265", "profile", G_TYPE_STRING, "main",
+        NULL);
+
+  g_object_set (G_OBJECT (enc_capsfilter), "caps", enc_caps, NULL);
   g_object_set (G_OBJECT (sink), "location", enc.output_filename, NULL);
 
   g_print
@@ -425,11 +442,11 @@ main (int argc, char *argv[])
 
   /* Add elements into pipeline */
   gst_bin_add_many (GST_BIN (pipeline), source, videoparse, encoder,
-      enc_queue, sink, NULL);
+      enc_capsfilter, enc_queue, sink, NULL);
 
   /* link the elements */
-  if (!gst_element_link_many (source, videoparse, encoder, enc_queue, sink,
-          NULL)) {
+  if (!gst_element_link_many (source, videoparse, encoder, enc_capsfilter,
+          enc_queue, sink, NULL)) {
     g_printerr ("Failed to link elements \n");
     return -1;
   }
@@ -475,6 +492,7 @@ main (int argc, char *argv[])
     g_free (enc.type);
 
   g_print ("Deleting pipeline\n");
+  gst_caps_unref (enc_caps);
   gst_object_unref (pipeline);
   gst_bus_remove_watch (bus);
   gst_object_unref (bus);
