@@ -2828,7 +2828,7 @@ gst_omx_video_dec_handle_frame (GstVideoDecoder * decoder,
 
     if (gst_omx_port_is_flushing (self->dec_out_port)) {
       if (!gst_omx_video_dec_enable (self, frame->input_buffer))
-        return FALSE;
+        goto enable_error;
 
       if (gst_omx_video_dec_reconfigure_output_port (self) != OMX_ErrorNone)
         return GST_FLOW_ERROR;
@@ -3111,6 +3111,21 @@ map_failed:
     gst_video_codec_frame_unref (frame);
     GST_ELEMENT_ERROR (self, STREAM, FORMAT, (NULL),
         ("failed to map input buffer"));
+    return GST_FLOW_ERROR;
+  }
+
+enable_error:
+  {
+    /* Report the OMX error, if any */
+    if (gst_omx_component_get_last_error (self->dec) != OMX_ErrorNone)
+      GST_ELEMENT_ERROR (self, LIBRARY, FAILED, (NULL),
+          ("Failed to enable OMX decoder: %s (0x%08x)",
+              gst_omx_component_get_last_error_string (self->dec),
+              gst_omx_component_get_last_error (self->dec)));
+    else
+      GST_ELEMENT_ERROR (self, LIBRARY, FAILED, (NULL),
+          ("Failed to enable OMX decoder"));
+    gst_video_codec_frame_unref (frame);
     return GST_FLOW_ERROR;
   }
 
