@@ -1270,7 +1270,6 @@ gst_omx_video_dec_reconfigure_output_port (GstOMXVideoDec * self)
   GstVideoFormat format;
 
   /* At this point the decoder output port is disabled */
-  g_assert (!gst_omx_port_is_enabled (self->dec_out_port));
 
 #if defined (HAVE_GST_GL)
   {
@@ -1530,14 +1529,6 @@ enable_port:
 #endif
     goto done;
   }
-
-  if (gst_omx_component_set_state (self->dec,
-          OMX_StateExecuting) != OMX_ErrorNone)
-    return FALSE;
-
-  if (gst_omx_component_get_state (self->dec,
-          GST_CLOCK_TIME_NONE) != OMX_StateExecuting)
-    return FALSE;
 
   err = gst_omx_port_populate (port);
   if (err != OMX_ErrorNone)
@@ -2509,6 +2500,14 @@ gst_omx_video_dec_enable (GstOMXVideoDec * self, GstBuffer * input)
     if (gst_omx_component_get_state (self->dec,
             GST_CLOCK_TIME_NONE) != OMX_StateIdle)
       return FALSE;
+
+    if (gst_omx_component_set_state (self->dec,
+            OMX_StateExecuting) != OMX_ErrorNone)
+      return FALSE;
+
+    if (gst_omx_component_get_state (self->dec,
+            GST_CLOCK_TIME_NONE) != OMX_StateExecuting)
+      return FALSE;
   }
 
   /* Unset flushing to allow ports to accept data again */
@@ -2829,9 +2828,6 @@ gst_omx_video_dec_handle_frame (GstVideoDecoder * decoder,
     if (gst_omx_port_is_flushing (self->dec_out_port)) {
       if (!gst_omx_video_dec_enable (self, frame->input_buffer))
         goto enable_error;
-
-      if (gst_omx_video_dec_reconfigure_output_port (self) != OMX_ErrorNone)
-        return GST_FLOW_ERROR;
     }
 
     GST_DEBUG_OBJECT (self, "Starting task");
