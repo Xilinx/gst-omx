@@ -3271,10 +3271,7 @@ gst_omx_video_enc_sink_event (GstVideoEncoder * encoder, GstEvent * event)
 #ifdef USE_OMX_TARGET_ZYNQ_USCALE_PLUS
     case GST_EVENT_CUSTOM_DOWNSTREAM:
     {
-      const GstStructure *s;
-
-      s = gst_event_get_structure (event);
-      if (g_str_equal (gst_structure_get_name (s), "omx-alg/scene-change"))
+      if (gst_event_has_name (event, "omx-alg/scene-change"))
         handle_scene_change_event (self, event);
 
       return TRUE;
