@@ -105,6 +105,8 @@ struct _GstOMXVideoEnc
   gboolean input_dmabuf;
   /* Number of buffers allocated upstream */
   guint nb_upstream_buffers;
+  /* Number of buffers requested downstream */
+  guint nb_downstream_buffers;
 
 #ifdef USE_OMX_TARGET_ZYNQ_USCALE_PLUS
   GEnumClass *alg_roi_quality_enum_class;

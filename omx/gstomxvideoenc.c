@@ -252,6 +252,8 @@ static gboolean gst_omx_video_enc_propose_allocation (GstVideoEncoder * encoder,
     GstQuery * query);
 static GstCaps *gst_omx_video_enc_getcaps (GstVideoEncoder * encoder,
     GstCaps * filter);
+static gboolean gst_omx_video_enc_decide_allocation (GstVideoEncoder * encoder,
+    GstQuery * query);
 
 static GstFlowReturn gst_omx_video_enc_drain (GstOMXVideoEnc * self);
 
@@ -534,6 +536,8 @@ gst_omx_video_enc_class_init (GstOMXVideoEncClass * klass)
   video_encoder_class->getcaps = GST_DEBUG_FUNCPTR (gst_omx_video_enc_getcaps);
   video_encoder_class->sink_event =
       GST_DEBUG_FUNCPTR (gst_omx_video_enc_sink_event);
+  video_encoder_class->decide_allocation =
+      GST_DEBUG_FUNCPTR (gst_omx_video_enc_decide_allocation);
 
   klass->cdata.type = GST_OMX_COMPONENT_TYPE_FILTER;
   klass->cdata.default_sink_template_caps = "video/x-raw, "
@@ -1515,7 +1519,14 @@ gst_omx_video_enc_handle_output_frame (GstOMXVideoEnc * self, GstOMXPort * port,
 static gboolean
 gst_omx_video_enc_ensure_nb_out_buffers (GstOMXVideoEnc * self)
 {
-  if (!gst_omx_port_ensure_buffer_count_actual (self->enc_out_port, 2))
+  guint extra = 0;
+
+  /* If dowstream tell us how many buffers it needs allocate as many extra buffers so we won't starve
+   * if it keeps them downstream (like when using dynamic mode). */
+  if (self->nb_downstream_buffers)
+    extra = self->nb_downstream_buffers;
+
+  if (!gst_omx_port_ensure_buffer_count_actual (self->enc_out_port, extra))
     return FALSE;
 
   return TRUE;
@@ -1790,6 +1801,7 @@ gst_omx_video_enc_start (GstVideoEncoder * encoder)
   self->last_upstream_ts = 0;
   self->downstream_flow_ret = GST_FLOW_OK;
   self->nb_upstream_buffers = 0;
+  self->nb_downstream_buffers = 0;
 
   return TRUE;
 }
@@ -3318,4 +3330,29 @@ gst_omx_video_enc_sink_event (GstVideoEncoder * encoder, GstEvent * event)
   return
       GST_VIDEO_ENCODER_CLASS (gst_omx_video_enc_parent_class)->sink_event
       (encoder, event);
+}
+
+static gboolean
+gst_omx_video_enc_decide_allocation (GstVideoEncoder * encoder,
+    GstQuery * query)
+{
+  GstOMXVideoEnc *self = GST_OMX_VIDEO_ENC (encoder);
+  guint min = 1;
+
+  if (!GST_VIDEO_ENCODER_CLASS
+      (gst_omx_video_enc_parent_class)->decide_allocation (encoder, query))
+    return FALSE;
+
+  if (gst_query_get_n_allocation_pools (query)) {
+    gst_query_parse_nth_allocation_pool (query, 0, NULL, NULL, &min, NULL);
+    GST_DEBUG_OBJECT (self,
+        "Downstream requested %d buffers, adjust number of output buffers accordingly",
+        min);
+  } else {
+    GST_DEBUG_OBJECT (self, "Downstream didn't set any allocation pool info");
+  }
+
+  self->nb_downstream_buffers = min;
+
+  return TRUE;
 }
