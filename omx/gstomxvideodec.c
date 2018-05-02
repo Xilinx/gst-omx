@@ -2351,9 +2351,6 @@ gst_omx_video_dec_disable (GstOMXVideoDec * self)
 static gboolean
 gst_omx_video_dec_allocate_in_buffers (GstOMXVideoDec * self)
 {
-  if (!gst_omx_port_ensure_buffer_count_actual (self->dec_in_port, 3))
-    return FALSE;
-
   switch (self->input_allocation) {
     case GST_OMX_BUFFER_ALLOCATION_ALLOCATE_BUFFER:
       if (gst_omx_port_allocate_buffers (self->dec_in_port) != OMX_ErrorNone)
@@ -2434,6 +2431,15 @@ gst_omx_video_dec_pick_input_allocation_mode (GstOMXVideoDec * self,
 }
 
 static gboolean
+gst_omx_video_dec_ensure_nb_in_buffers (GstOMXVideoDec * self)
+{
+  if (!gst_omx_port_ensure_buffer_count_actual (self->dec_in_port, 3))
+    return FALSE;
+
+  return TRUE;
+}
+
+static gboolean
 gst_omx_video_dec_enable (GstOMXVideoDec * self, GstBuffer * input)
 {
   GstOMXVideoDecClass *klass = GST_OMX_VIDEO_DEC_GET_CLASS (self);
@@ -2444,6 +2450,8 @@ gst_omx_video_dec_enable (GstOMXVideoDec * self, GstBuffer * input)
       input);
 
   if (self->disabled) {
+    if (!gst_omx_video_dec_ensure_nb_in_buffers (self))
+      return FALSE;
     if (gst_omx_port_set_enabled (self->dec_in_port, TRUE) != OMX_ErrorNone)
       return FALSE;
     if (!gst_omx_video_dec_allocate_in_buffers (self))
@@ -2468,6 +2476,9 @@ gst_omx_video_dec_enable (GstOMXVideoDec * self, GstBuffer * input)
   } else {
     if (!gst_omx_video_dec_negotiate (self))
       GST_LOG_OBJECT (self, "Negotiation failed, will get output format later");
+
+    if (!gst_omx_video_dec_ensure_nb_in_buffers (self))
+      return FALSE;
 
     if (!(klass->cdata.hacks & GST_OMX_HACK_NO_DISABLE_OUTPORT)) {
       /* Disable output port */
@@ -2888,6 +2899,11 @@ gst_omx_video_dec_handle_frame (GstVideoDecoder * decoder,
 
       err = gst_omx_port_wait_enabled (port, 1 * GST_SECOND);
       if (err != OMX_ErrorNone) {
+        GST_VIDEO_DECODER_STREAM_LOCK (self);
+        goto reconfigure_error;
+      }
+
+      if (!gst_omx_video_dec_ensure_nb_in_buffers (self)) {
         GST_VIDEO_DECODER_STREAM_LOCK (self);
         goto reconfigure_error;
       }
