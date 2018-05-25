@@ -2960,7 +2960,7 @@ gst_omx_video_enc_handle_frame (GstVideoEncoder * encoder,
           gst_omx_component_set_config (self->enc,
           OMX_IndexConfigBrcmVideoRequestIFrame, &config);
 #elif USE_OMX_TARGET_ZYNQ_USCALE_PLUS
-      OMX_ALG_VIDEO_CONFIG_INSERT_INSTANTANEOUS_DECODING_REFRESH config;
+      OMX_ALG_VIDEO_CONFIG_INSERT config;
 
       GST_OMX_INIT_STRUCT (&config);
       config.nPortIndex = self->enc_out_port->index;
