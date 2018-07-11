@@ -151,7 +151,7 @@ gstvideo_dep = dependency('gstreamer-video-1.0', version : gst_req,
     fallback : ['gst-plugins-base', 'video_dep'])
 
 gstgl_dep = dependency('gstreamer-gl-1.0', version : gst_req,
-    fallback : ['gst-plugins-base', 'gstgl_dep'], required : false)
+    fallback : ['gst-plugins-bad', 'gstgl_dep'], required : false)
 
 x11_dep = dependency('x11', required : false)
 
