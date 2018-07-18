@@ -3466,6 +3466,7 @@ gst_omx_video_enc_sink_event (GstVideoEncoder * encoder, GstEvent * event)
               self->nb_upstream_buffers);
         }
 
+        gst_event_unref (event);
         return TRUE;
       }
     }
