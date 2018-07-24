@@ -1244,6 +1244,18 @@ gst_omx_video_dec_deallocate_output_buffers (GstOMXVideoDec * self)
     GST_OMX_BUFFER_POOL (self->out_port_pool)->deactivated = TRUE;
     gst_object_unref (self->out_port_pool);
     self->out_port_pool = NULL;
+  } else {
+    OMX_ERRORTYPE err;
+
+#if defined (USE_OMX_TARGET_RPI) && defined (HAVE_GST_GL)
+    err =
+        gst_omx_port_deallocate_buffers (self->eglimage ? self->
+        egl_out_port : self->dec_out_port);
+#else
+    err = gst_omx_port_deallocate_buffers (self->dec_out_port);
+#endif
+
+    return err == OMX_ErrorNone;
   }
 
   return TRUE;
