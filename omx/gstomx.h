@@ -408,6 +408,7 @@ guint64           gst_omx_parse_hacks (gchar ** hacks);
 GstOMXCore *      gst_omx_core_acquire (const gchar * filename);
 void              gst_omx_core_release (GstOMXCore * core);
 
+GType             gst_omx_component_get_type (void);
 
 GstOMXComponent * gst_omx_component_new (GstObject * parent, const gchar *core_name, const gchar *component_name, const gchar * component_role, guint64 hacks);
 GstOMXComponent * gst_omx_component_ref   (GstOMXComponent * comp);
