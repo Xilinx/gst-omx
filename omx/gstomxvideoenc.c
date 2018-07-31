@@ -2211,6 +2211,20 @@ gst_omx_video_enc_set_to_idle (GstOMXVideoEnc * self)
 }
 
 static gboolean
+buffer_is_from_input_pool (GstOMXVideoEnc * self, GstBuffer * buffer)
+{
+  /* Buffer from our input pool will already have a GstOMXBuffer associated
+   * with our input port. */
+  GstOMXBuffer *buf;
+
+  buf = gst_omx_buffer_get_omx_buf (buffer);
+  if (!buf)
+    return FALSE;
+
+  return buf->port == self->enc_in_port;
+}
+
+static gboolean
 gst_omx_video_enc_enable (GstOMXVideoEnc * self, GstBuffer * input)
 {
   GstOMXVideoEncClass *klass;
@@ -2218,7 +2232,7 @@ gst_omx_video_enc_enable (GstOMXVideoEnc * self, GstBuffer * input)
   klass = GST_OMX_VIDEO_ENC_GET_CLASS (self);
 
   /* Is downstream using our buffer pool? */
-  if (input->pool && GST_IS_OMX_BUFFER_POOL (input->pool)) {
+  if (buffer_is_from_input_pool (self, input)) {
     /* We're done allocating as we received the first buffer from upstream */
     GST_OMX_BUFFER_POOL (input->pool)->allocating = FALSE;
     self->in_pool_used = TRUE;
@@ -2906,9 +2920,10 @@ gst_omx_video_enc_handle_frame (GstVideoEncoder * encoder,
      * because no input buffers are released */
     GST_VIDEO_ENCODER_STREAM_UNLOCK (self);
 
-    buf = gst_omx_buffer_get_omx_buf (frame->input_buffer);
-    if (buf) {
+    if (buffer_is_from_input_pool (self, frame->input_buffer)) {
       /* Receiving a buffer from our input pool */
+      buf = gst_omx_buffer_get_omx_buf (frame->input_buffer);
+
       GST_LOG_OBJECT (self,
           "Input buffer %p already has a OMX buffer associated: %p",
           frame->input_buffer, buf);
