@@ -295,6 +295,8 @@ enum
   PROP_DEFAULT_ROI_QUALITY,
   PROP_PREFETCH_BUFFER,
   PROP_LATENCY_MODE,
+  PROP_LONGTERM_REF,
+  PROP_LONGTERM_FREQUENCY,
 };
 
 /* FIXME: Better defaults */
@@ -321,6 +323,13 @@ enum
 #define GST_OMX_VIDEO_ENC_DEFAULT_ROI_QUALITY OMX_ALG_ROI_QUALITY_HIGH
 #define GST_OMX_VIDEO_ENC_PREFETCH_BUFFER_DEFAULT (FALSE)
 #define GST_OMX_VIDEO_ENC_LATENCY_MODE_DEFAULT (0xffffffff)
+#define GST_OMX_VIDEO_ENC_LONGTERM_REF_DEFAULT (FALSE)
+#define GST_OMX_VIDEO_ENC_LONGTERM_FREQUENCY_DEFAULT (0)
+
+/* ZYNQ_USCALE_PLUS encoder custom events */
+#define OMX_ALG_GST_EVENT_INSERT_LONGTERM "omx-alg/insert-longterm"
+#define OMX_ALG_GST_EVENT_USE_LONGTERM "omx-alg/use-longterm"
+#define OMX_ALG_GST_EVENT_SCENE_CHANGE "omx-alg/scene-change"
 
 /* class initialization */
 #define do_init \
@@ -522,6 +531,22 @@ gst_omx_video_enc_class_init (GstOMXVideoEncClass * klass)
           GST_TYPE_OMX_VIDEO_ENC_LATENCY_MODE,
           GST_OMX_VIDEO_ENC_LATENCY_MODE_DEFAULT,
           G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
+
+  g_object_class_install_property (gobject_class, PROP_LONGTERM_REF,
+      g_param_spec_boolean ("long-term-ref", "LongTerm Reference Pictures",
+          "If enabled, encoder accepts dynamically inserting and using long-term reference "
+          "picture events from upstream elements",
+          GST_OMX_VIDEO_ENC_LONGTERM_REF_DEFAULT,
+          G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS |
+          GST_PARAM_MUTABLE_READY));
+
+  g_object_class_install_property (gobject_class, PROP_LONGTERM_FREQUENCY,
+      g_param_spec_uint ("long-term-freq", "LongTerm reference frequency",
+          "Periodicity of LongTerm reference picture marking in encoding process "
+          "Units in frames, distance between two consequtive long-term reference pictures",
+          0, G_MAXUINT, GST_OMX_VIDEO_ENC_LONGTERM_REF_DEFAULT,
+          G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS |
+          GST_PARAM_MUTABLE_READY));
 #endif
 
   element_class->change_state =
@@ -581,6 +606,8 @@ gst_omx_video_enc_init (GstOMXVideoEnc * self)
   self->default_roi_quality = GST_OMX_VIDEO_ENC_DEFAULT_ROI_QUALITY;
   self->prefetch_buffer = GST_OMX_VIDEO_ENC_PREFETCH_BUFFER_DEFAULT;
   self->latency_mode = GST_OMX_VIDEO_ENC_LATENCY_MODE_DEFAULT;
+  self->long_term_ref = GST_OMX_VIDEO_ENC_LONGTERM_REF_DEFAULT;
+  self->long_term_freq = GST_OMX_VIDEO_ENC_LONGTERM_FREQUENCY_DEFAULT;
 #endif
 
   self->default_target_bitrate = GST_OMX_PROP_OMX_DEFAULT;
@@ -835,6 +862,22 @@ set_zynqultrascaleplus_props (GstOMXVideoEnc * self)
         gst_omx_component_set_parameter (self->enc,
         (OMX_INDEXTYPE) OMX_ALG_IndexParamVideoSubframe, &subframe_mode);
     CHECK_ERR ("latency mode");
+  }
+
+  {
+    OMX_ALG_VIDEO_PARAM_LONG_TERM longterm;
+    GST_OMX_INIT_STRUCT (&longterm);
+    longterm.nPortIndex = self->enc_out_port->index;
+    longterm.bEnableLongTerm = self->long_term_ref;
+    longterm.nLongTermFrequency = self->long_term_freq;
+
+    GST_DEBUG_OBJECT (self, "setting long-term ref to %d, long-term-freq to %d",
+        self->long_term_ref, self->long_term_freq);
+
+    err =
+        gst_omx_component_set_parameter (self->enc,
+        (OMX_INDEXTYPE) OMX_ALG_IndexParamVideoLongTerm, &longterm);
+    CHECK_ERR ("longterm");
   }
 
   return TRUE;
@@ -1177,6 +1220,12 @@ gst_omx_video_enc_set_property (GObject * object, guint prop_id,
       g_warning ("Property 'latency-mode' is deprecated and have no effect. "
           LATENCY_MODE_DEPRECATION_MESSAGE);
       break;
+    case PROP_LONGTERM_REF:
+      self->long_term_ref = g_value_get_boolean (value);
+      break;
+    case PROP_LONGTERM_FREQUENCY:
+      self->long_term_freq = g_value_get_uint (value);
+      break;
 #endif
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
@@ -1262,6 +1311,12 @@ gst_omx_video_enc_get_property (GObject * object, guint prop_id, GValue * value,
       break;
     case PROP_LATENCY_MODE:
       g_value_set_enum (value, ENC_LATENCY_MODE_NORMAL);
+      break;
+    case PROP_LONGTERM_REF:
+      g_value_set_boolean (value, self->long_term_ref);
+      break;
+    case PROP_LONGTERM_FREQUENCY:
+      g_value_set_uint (value, self->long_term_freq);
       break;
 #endif
     default:
@@ -3434,6 +3489,47 @@ handle_scene_change_event (GstOMXVideoEnc * self, GstEvent * event)
 
   return TRUE;
 }
+
+static gboolean
+handle_longterm_event (GstOMXVideoEnc * self, GstEvent * event)
+{
+  OMX_ALG_VIDEO_CONFIG_INSERT longterm;
+  OMX_ERRORTYPE err;
+  OMX_INDEXTYPE omx_index_long_term;
+
+  GST_OMX_INIT_STRUCT (&longterm);
+  longterm.nPortIndex = self->enc_in_port->index;
+
+  /* If long-term-ref is enabled then "omx-alg/insert-longterm" event
+   * marks the encoding picture as long term reference picture and
+   * "omx-alg/use-longterm" event informs the encoder that encoding picture
+   * should use existing long term picture in the dpb as reference for encoding process */
+
+  if (self->long_term_ref) {
+    if (gst_event_has_name (event, OMX_ALG_GST_EVENT_INSERT_LONGTERM)) {
+      GST_LOG_OBJECT (self, "received omx-alg/insert-longterm event");
+      omx_index_long_term =
+          (OMX_INDEXTYPE) OMX_ALG_IndexConfigVideoInsertLongTerm;
+    } else {
+      GST_LOG_OBJECT (self, "received omx-alg/use-longterm event");
+      omx_index_long_term = (OMX_INDEXTYPE) OMX_ALG_IndexConfigVideoUseLongTerm;
+    }
+
+    err =
+        gst_omx_component_set_config (self->enc, omx_index_long_term,
+        &longterm);
+
+    if (err != OMX_ErrorNone)
+      GST_ERROR_OBJECT (self,
+          "Failed to longterm events: %s (0x%08x)",
+          gst_omx_error_to_string (err), err);
+  } else {
+    GST_WARNING_OBJECT (self,
+        "LongTerm events are not handled because long_term_ref is disabled");
+  }
+
+  return TRUE;
+}
 #endif
 
 static gboolean
@@ -3464,6 +3560,9 @@ gst_omx_video_enc_sink_event (GstVideoEncoder * encoder, GstEvent * event)
 #ifdef USE_OMX_TARGET_ZYNQ_USCALE_PLUS
       else if (gst_event_has_name (event, "omx-alg/scene-change"))
         handle_scene_change_event (self, event);
+      else if (gst_event_has_name (event, OMX_ALG_GST_EVENT_INSERT_LONGTERM)
+          || gst_event_has_name (event, OMX_ALG_GST_EVENT_USE_LONGTERM))
+        handle_longterm_event (self, event);
 #endif
     }
 
