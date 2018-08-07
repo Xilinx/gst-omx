@@ -3551,7 +3551,8 @@ gst_omx_video_dec_decide_allocation (GstVideoDecoder * bdec, GstQuery * query)
       i++;
     }
 
-    gst_object_unref (pool);
+    if (pool)
+      gst_object_unref (pool);
   }
 
   if (!GST_VIDEO_DECODER_CLASS
