@@ -187,23 +187,26 @@ gst_omx_h265_enc_class_init (GstOMXH265EncClass * klass)
 }
 
 #ifdef USE_OMX_TARGET_ZYNQ_USCALE_PLUS
-/* Returns true if gop_length is multiple of (b-frames+1) */
-static gboolean
-validate_gop_param (GstOMXH265Enc * self)
-{
-  /* gop_length = 0 and 1 both represents Intra only encoding */
-  if (!self->gop_length)
-    self->gop_length = 1;
-
-  return !(self->gop_length % (self->b_frames + 1));
-}
-
+/* We will set OMX il's nPframes & nBframes parameter as below calculation
+   based on user's input of GopLength & NumBframes
+   nPframes(Number of P frames between each I frame) = (GopLength -1) / (NumBframes+1)
+   nBframes(Number of B frames between each I frame) = GopLength - nPframes - 1
+*/
 static void
 compute_gop_pattern (GstOMXH265Enc * self, guint * n_p_frames,
     guint * n_b_frames)
 {
-  *n_p_frames = ((self->gop_length) / (self->b_frames + 1)) - 1;
-  *n_b_frames = self->gop_length - (*n_p_frames + 1);
+  /* gop_length = 0 and 1 both represents Intra only encoding */
+  if (!self->gop_length)
+    self->gop_length = 1;
+  if (self->gop_length == 1) {
+    GST_LOG_OBJECT (self,
+        "GopLength is 1 so its only Intra. Setting b_frames as 0\n");
+    self->b_frames = 0;
+  }
+
+  *n_p_frames = (self->gop_length - 1) / (self->b_frames + 1);
+  *n_b_frames = self->gop_length - *n_p_frames - 1;
 }
 
 static void
@@ -224,20 +227,16 @@ update_config_video_gop (GstOMXH265Enc * self)
         "Failed to get b-frames parameter: %s (0x%08x)",
         gst_omx_error_to_string (err), err);
 
-  if (validate_gop_param (self)) {
-    compute_gop_pattern (self, &config.nPFrames, &config.nBFrames);
-    err =
-        gst_omx_component_set_config (GST_OMX_VIDEO_ENC (self)->enc,
-        (OMX_INDEXTYPE) OMX_ALG_IndexConfigVideoGroupOfPictures, &config);
+  compute_gop_pattern (self, &config.nPFrames, &config.nBFrames);
+  err =
+      gst_omx_component_set_config (GST_OMX_VIDEO_ENC (self)->enc,
+      (OMX_INDEXTYPE) OMX_ALG_IndexConfigVideoGroupOfPictures, &config);
 
-    if (err != OMX_ErrorNone)
-      GST_ERROR_OBJECT (self,
-          "Failed to set  parameter: %s (0x%08x)",
-          gst_omx_error_to_string (err), err);
-
-  } else
+  if (err != OMX_ErrorNone)
     GST_ERROR_OBJECT (self,
-        "GOP structure is not updated because gop-length should be multiple of (b-frames + 1)");
+        "Failed to set  parameter: %s (0x%08x)",
+        gst_omx_error_to_string (err), err);
+
 }
 #endif
 static void
@@ -432,27 +431,6 @@ update_param_hevc (GstOMXH265Enc * self,
 
   /* GOP pattern */
 #ifdef USE_OMX_TARGET_ZYNQ_USCALE_PLUS
-
-  /* We will set OMX il's nPframes & nBframes parameter as below calculation
-     based on user's input of GopLength & NumBframes
-     nPframes(Number of P frames between each I frame) = GopLength/(NumBframes+1) - 1
-     nBframes(Number of B frames between each I frame) = GopLength - (nPframes+1)
-     NOTE: We have one constraint that user must provide GopLength in multiple of NumBframes+1.
-   */
-  if (!validate_gop_param (self)) {
-    if (self->gop_length == 1) {
-      GST_LOG_OBJECT (self,
-          "GopLength is 1 so its only Intra. Setting b_frames as 0\n");
-      self->b_frames = 0;
-    } else {
-      GST_ERROR_OBJECT (self,
-          "GopLength should be in multiple of (b-frames + 1).Now setting it to default value");
-      g_warning
-          ("GopLength should be in multiple of (b-frames + 1).Now setting it to default value");
-      self->gop_length = GST_OMX_H265_VIDEO_ENC_GOP_LENGTH_DEFAULT;
-      self->b_frames = GST_OMX_H265_VIDEO_ENC_B_FRAMES_DEFAULT;
-    }
-  }
 
   compute_gop_pattern (self, &p_frames, &b_frames);
 
