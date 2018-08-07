@@ -822,13 +822,13 @@ gst_omx_try_importing_buffer (GstOMXVideoDec * self, GstBufferPool * pool,
   return buffer;
 
 out:
-  gst_buffer_unref (buffer);
   if (*frame) {
     if (is_mapped)
       gst_video_frame_unmap (*frame);
     g_slice_free (GstVideoFrame, *frame);
     *frame = NULL;
   }
+  gst_buffer_unref (buffer);
   return NULL;
 }
 
