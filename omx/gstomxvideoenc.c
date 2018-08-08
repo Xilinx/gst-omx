@@ -3581,6 +3581,15 @@ gst_omx_video_enc_getcaps (GstVideoEncoder * encoder, GstCaps * filter)
         gst_value_list_append_value (&modes, &v);
         gst_caps_set_value (ret, "interlace-mode", &modes);
 
+        /* Filter supported interlace-mode from upstreaming */
+        if (filter) {
+          GstCaps *tmp;
+
+          tmp = gst_caps_intersect (ret, filter);
+          gst_caps_unref (ret);
+          ret = tmp;
+        }
+
         g_value_init (&field_order, GST_TYPE_LIST);
         if (interlace_format_param.nFormat &
             OMX_ALG_InterlaceAlternateBottomFieldFirst) {
