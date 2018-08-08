@@ -3522,6 +3522,33 @@ filter_supported_formats (GList * negotiation_map)
   return negotiation_map;
 }
 
+#ifdef USE_OMX_TARGET_ZYNQ_USCALE_PLUS
+static gboolean
+structure_supports_alternate (GstStructure * s)
+{
+  const GValue *modes;
+
+  modes = gst_structure_get_value (s, "interlace-mode");
+  if (!modes)
+    return FALSE;
+
+  if (G_VALUE_HOLDS_STRING (modes)) {
+    return !g_strcmp0 (g_value_get_string (modes), "alternate");
+  } else if (GST_VALUE_HOLDS_LIST (modes)) {
+    guint i;
+
+    for (i = 0; i < gst_value_list_get_size (modes); i++) {
+      const GValue *v = gst_value_list_get_value (modes, i);
+
+      if (!g_strcmp0 (g_value_get_string (v), "alternate"))
+        return TRUE;
+    }
+  }
+
+  return FALSE;
+}
+#endif
+
 static GstCaps *
 gst_omx_video_enc_getcaps (GstVideoEncoder * encoder, GstCaps * filter)
 {
@@ -3603,7 +3630,16 @@ gst_omx_video_enc_getcaps (GstVideoEncoder * encoder, GstCaps * filter)
         }
 
         if (gst_value_list_get_size (&field_order) > 0) {
-          gst_caps_set_value (ret, "field-order", &field_order);
+          /* Add the field-order if 'alternate' hasn't been filtered out */
+          guint i;
+
+          for (i = 0; i < gst_caps_get_size (ret); i++) {
+            GstStructure *s = gst_caps_get_structure (ret, i);
+
+            if (structure_supports_alternate (s)) {
+              gst_structure_set_value (s, "field-order", &field_order);
+            }
+          }
         }
       }
     }
