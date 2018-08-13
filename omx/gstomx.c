@@ -418,7 +418,11 @@ gst_omx_component_handle_messages (GstOMXComponent * comp)
             port->eos = TRUE;
         }
 
-        g_queue_push_tail (&port->pending_buffers, buf);
+        /* If an input port is managed by a pool, the buffer will be ready to be
+         * filled again once it's been released to the pool. */
+        if (port->port_def.eDir == OMX_DirOutput || !port->using_pool) {
+          g_queue_push_tail (&port->pending_buffers, buf);
+        }
 
         break;
       }
@@ -1097,6 +1101,7 @@ gst_omx_component_add_port (GstOMXComponent * comp, guint32 index)
   port->enabled_pending = FALSE;
   port->disabled_pending = FALSE;
   port->eos = FALSE;
+  port->using_pool = FALSE;
 
   if (port->port_def.eDir == OMX_DirInput)
     comp->n_in_ports++;

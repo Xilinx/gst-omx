@@ -239,6 +239,8 @@ gst_omx_buffer_pool_start (GstBufferPool * bpool)
     return FALSE;
   }
 
+  pool->port->using_pool = TRUE;
+
   has_buffers = (pool->port->buffers != NULL);
   GST_OBJECT_UNLOCK (pool);
 
@@ -279,14 +281,12 @@ gst_omx_buffer_pool_stop (GstBufferPool * bpool)
   GstOMXBufferPool *pool = GST_OMX_BUFFER_POOL (bpool);
   gint i = 0;
 
-  if (pool->port->port_def.eDir == OMX_DirOutput) {
-    /* When not using the default GstBufferPool::GstAtomicQueue then
-     * GstBufferPool::free_buffer is not called while stopping the pool
-     * (because the queue is empty) */
-    for (i = 0; i < pool->buffers->len; i++)
-      GST_BUFFER_POOL_CLASS (gst_omx_buffer_pool_parent_class)->release_buffer
-          (bpool, g_ptr_array_index (pool->buffers, i));
-  }
+  /* When not using the default GstBufferPool::GstAtomicQueue then
+   * GstBufferPool::free_buffer is not called while stopping the pool
+   * (because the queue is empty) */
+  for (i = 0; i < pool->buffers->len; i++)
+    GST_BUFFER_POOL_CLASS (gst_omx_buffer_pool_parent_class)->release_buffer
+        (bpool, g_ptr_array_index (pool->buffers, i));
 
   /* Remove any buffers that are there */
   g_ptr_array_set_size (pool->buffers, 0);
@@ -300,6 +300,7 @@ gst_omx_buffer_pool_stop (GstBufferPool * bpool)
 
   pool->add_videometa = FALSE;
   pool->deactivated = TRUE;
+  pool->port->using_pool = TRUE;
 
   return GST_BUFFER_POOL_CLASS (gst_omx_buffer_pool_parent_class)->stop (bpool);
 }
@@ -563,6 +564,21 @@ gst_omx_buffer_pool_free_buffer (GstBufferPool * bpool, GstBuffer * buffer)
       buffer);
 }
 
+static GstBuffer *
+find_buffer_from_omx_buffer (GstOMXBufferPool * pool, GstOMXBuffer * omx_buf)
+{
+  guint i;
+
+  for (i = 0; i < pool->buffers->len; i++) {
+    GstBuffer *buf = g_ptr_array_index (pool->buffers, i);
+
+    if (gst_omx_buffer_get_omx_buf (buf) == omx_buf)
+      return buf;
+  }
+
+  return NULL;
+}
+
 static GstFlowReturn
 gst_omx_buffer_pool_acquire_buffer (GstBufferPool * bpool,
     GstBuffer ** buffer, GstBufferPoolAcquireParams * params)
@@ -600,9 +616,23 @@ gst_omx_buffer_pool_acquire_buffer (GstBufferPool * bpool,
     }
   } else {
     /* Acquire any buffer that is available to be filled by upstream */
-    ret =
-        GST_BUFFER_POOL_CLASS (gst_omx_buffer_pool_parent_class)->acquire_buffer
-        (bpool, buffer, params);
+    GstOMXBuffer *omx_buf;
+    GstOMXAcquireBufferReturn r;
+    GstOMXWait wait = GST_OMX_WAIT;
+
+    if (params && (params->flags & GST_BUFFER_POOL_ACQUIRE_FLAG_DONTWAIT))
+      wait = GST_OMX_DONT_WAIT;
+
+    r = gst_omx_port_acquire_buffer (pool->port, &omx_buf, wait);
+    if (r == GST_OMX_ACQUIRE_BUFFER_OK) {
+      *buffer = find_buffer_from_omx_buffer (pool, omx_buf);
+      g_return_val_if_fail (*buffer, GST_FLOW_ERROR);
+      return GST_FLOW_OK;
+    } else if (r == GST_OMX_ACQUIRE_BUFFER_FLUSHING) {
+      return GST_FLOW_FLUSHING;
+    } else {
+      return GST_FLOW_ERROR;
+    }
   }
 
   return ret;
@@ -617,16 +647,10 @@ gst_omx_buffer_pool_release_buffer (GstBufferPool * bpool, GstBuffer * buffer)
 
   g_assert (pool->component && pool->port);
 
-  /* Input buffers can be released right away so they can be filled upstream */
-  if (!pool->deactivated && pool->port->port_def.eDir == OMX_DirInput) {
-    GST_BUFFER_POOL_CLASS (gst_omx_buffer_pool_parent_class)->release_buffer
-        (bpool, buffer);
-    return;
-  }
-
-  if (!pool->allocating && !pool->deactivated) {
+  if (!pool->allocating) {
     omx_buf = gst_omx_buffer_get_omx_buf (buffer);
-    if (pool->port->port_def.eDir == OMX_DirOutput && !omx_buf->used) {
+    if (pool->port->port_def.eDir == OMX_DirOutput && !omx_buf->used &&
+        !pool->deactivated) {
       /* Release back to the port, can be filled again */
       err = gst_omx_port_release_buffer (pool->port, omx_buf);
       if (err != OMX_ErrorNone) {
@@ -634,6 +658,8 @@ gst_omx_buffer_pool_release_buffer (GstBufferPool * bpool, GstBuffer * buffer)
             ("Failed to relase output buffer to component: %s (0x%08x)",
                 gst_omx_error_to_string (err), err));
       }
+    } else if (pool->port->port_def.eDir == OMX_DirInput) {
+      g_queue_push_tail (&pool->port->pending_buffers, omx_buf);
     }
   }
 }

@@ -3410,6 +3410,10 @@ pool_request_allocate_cb (GstBufferPool * pool, GstOMXVideoEnc * self)
   self->input_allocation = GST_OMX_BUFFER_ALLOCATION_ALLOCATE_BUFFER;
   self->input_dmabuf = TRUE;
 
+  /* gst_omx_port_acquire_buffer() will fail if the input port is stil flushing
+   * which will prevent upstream from acquiring buffers. */
+  gst_omx_port_set_flushing (self->enc_in_port, 5 * GST_SECOND, FALSE);
+
   return TRUE;
 }
 

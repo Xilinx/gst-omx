@@ -319,6 +319,7 @@ struct _GstOMXPort {
   gboolean disabled_pending; /* was done until it took effect */
   gboolean eos; /* TRUE after a buffer with EOS flag was received */
   GstOMXBufferAllocation allocation;
+  gboolean using_pool; /* TRUE if the buffers of this port are managed by a pool */
 
   /* Increased whenever the settings of these port change.
    * If settings_cookie != configured_settings_cookie
