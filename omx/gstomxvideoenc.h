@@ -96,6 +96,7 @@ struct _GstOMXVideoEnc
   guint32 latency_mode;
   gboolean long_term_ref;
   guint32 long_term_freq;
+  guint32 look_ahead;
 #endif
 
   guint32 default_target_bitrate;
