@@ -3773,10 +3773,11 @@ handle_longterm_event (GstOMXVideoEnc * self, GstEvent * event)
 
     if (gst_event_has_name (event, OMX_ALG_GST_EVENT_INSERT_LONGTERM)) {
       GST_LOG_OBJECT (self, "received omx-alg/insert-longterm event");
-      omx_index_long_term = OMX_ALG_IndexConfigVideoInsertLongTerm;
+      omx_index_long_term =
+          (OMX_INDEXTYPE) OMX_ALG_IndexConfigVideoInsertLongTerm;
     } else {
       GST_LOG_OBJECT (self, "received omx-alg/use-longterm event");
-      omx_index_long_term = OMX_ALG_IndexConfigVideoUseLongTerm;
+      omx_index_long_term = (OMX_INDEXTYPE) OMX_ALG_IndexConfigVideoUseLongTerm;
     }
 
     err =
