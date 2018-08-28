@@ -29,7 +29,7 @@
 #include <glib.h>
 #include <stdlib.h>
 #include <stdio.h>
-#include "OMX_Allegro.h"
+#include "OMX_VideoExt.h"
 
 #define DEFAULT_VIDEO_WIDTH 3840
 #define DEFAULT_VIDEO_HEIGHT 2160
