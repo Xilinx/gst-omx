@@ -1457,9 +1457,17 @@ gst_omx_video_enc_handle_output_frame (GstOMXVideoEnc * self, GstOMXPort * port,
     }
 
     if (frame) {
-      frame->output_buffer = outbuf;
-      flow_ret =
-          gst_video_encoder_finish_frame (GST_VIDEO_ENCODER (self), frame);
+      if (buf->omx_buf->nFlags & OMX_BUFFERFLAG_ENDOFFRAME) {
+        frame->output_buffer = outbuf;
+        flow_ret =
+            gst_video_encoder_finish_frame (GST_VIDEO_ENCODER (self), frame);
+      } else {
+        GST_BUFFER_FLAG_SET (outbuf, GST_OMX_BUFFER_FLAG_SUBFRAME);
+        flow_ret =
+            gst_video_encoder_finish_slice (GST_VIDEO_ENCODER (self), frame,
+            outbuf);
+        gst_video_codec_frame_unref (frame);
+      }
     } else {
       GST_ERROR_OBJECT (self, "No corresponding frame found");
       flow_ret = gst_pad_push (GST_VIDEO_ENCODER_SRC_PAD (self), outbuf);
