@@ -118,7 +118,6 @@ struct _GstOMXVideoEnc
   GEnumClass *alg_roi_quality_enum_class;
 #endif
   gulong drop_discont_probe;
-  gulong drop_segment_event_probe;
 };
 
 struct _GstOMXVideoEncClass

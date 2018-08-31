@@ -1118,12 +1118,6 @@ gst_omx_video_enc_shutdown (GstOMXVideoEnc * self)
     self->drop_discont_probe = 0;
   }
 
-  if (self->drop_segment_event_probe) {
-    gst_pad_remove_probe (GST_VIDEO_ENCODER_SRC_PAD (self),
-        self->drop_segment_event_probe);
-    self->drop_segment_event_probe = 0;
-  }
-
   return TRUE;
 }
 
@@ -1507,23 +1501,6 @@ drop_discont_cb (GstPad * pad, GstPadProbeInfo * info, gpointer user_data)
   return GST_PAD_PROBE_OK;
 }
 
-static GstPadProbeReturn
-drop_segment_event_cb (GstPad * pad, GstPadProbeInfo * info, gpointer user_data)
-{
-  GstOMXVideoEnc *self = user_data;
-  GstEvent *event;
-
-  event = gst_pad_probe_info_get_event (info);
-  if (event->type == GST_EVENT_SEGMENT) {
-    gst_pad_remove_probe (pad, self->drop_segment_event_probe);
-    self->drop_segment_event_probe = 0;
-    gst_event_unref (event);
-    return GST_PAD_PROBE_HANDLED;
-  }
-
-  return GST_PAD_PROBE_OK;
-}
-
 static GstFlowReturn
 gst_omx_video_enc_handle_output_frame (GstOMXVideoEnc * self, GstOMXPort * port,
     GstOMXBuffer * buf, GstVideoCodecFrame * frame)
@@ -1593,8 +1570,6 @@ gst_omx_video_enc_handle_output_frame (GstOMXVideoEnc * self, GstOMXPort * port,
       if (!frame)
         GST_ERROR_OBJECT (self, "No corresponding frame found");
     } else {
-      GList *e;
-
       /* Subframe, by-pass encoder bass class as it's now aware of subframes.
        * Also manually set the PTS/DTS from the input frame (more precise than the
        * OMX ts) as it won't be done by finish_frame() */
@@ -1608,32 +1583,6 @@ gst_omx_video_enc_handle_output_frame (GstOMXVideoEnc * self, GstOMXPort * port,
       if (frame->presentation_frame_number == 0 && !self->drop_discont_probe) {
         GST_BUFFER_FLAG_SET (outbuf, GST_BUFFER_FLAG_DISCONT);
         drop_next_discont = TRUE;
-      }
-
-      /* gst_video_encoder_finish_frame() is usually pushing the segment event
-       * before the first buffer. But in subframe mode it will only be called
-       * at the end of the first frame which is too late for downstream elements.
-       * Workaround this by:
-       * - pushing this event manually earlier
-       * - let the event in the frame's internal list so gstvideoencoder will
-       *   still be able to process it and update its internal state accordingly
-       * - add a probe to prevent this segment to be sent a second time when
-       *   gstomxvideoenc will try pushing it as well.
-       */
-      if (!self->drop_segment_event_probe) {
-        for (e = g_list_last (frame->events); e; e = e->prev) {
-          GstEvent *event = e->data;
-
-          if (event->type == GST_EVENT_SEGMENT) {
-            gst_event_ref (event);
-            gst_pad_push_event (GST_VIDEO_ENCODER_SRC_PAD (self), event);
-
-            self->drop_segment_event_probe =
-                gst_pad_add_probe (GST_VIDEO_ENCODER_SRC_PAD (self),
-                GST_PAD_PROBE_TYPE_EVENT_DOWNSTREAM, drop_segment_event_cb,
-                self, NULL);
-          }
-        }
       }
 
       gst_video_codec_frame_unref (frame);
