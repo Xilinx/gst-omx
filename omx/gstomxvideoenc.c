@@ -1112,12 +1112,6 @@ gst_omx_video_enc_shutdown (GstOMXVideoEnc * self)
       gst_omx_component_get_state (self->enc, 5 * GST_SECOND);
   }
 
-  if (self->drop_discont_probe) {
-    gst_pad_remove_probe (GST_VIDEO_ENCODER_SRC_PAD (self),
-        self->drop_discont_probe);
-    self->drop_discont_probe = 0;
-  }
-
   return TRUE;
 }
 
@@ -1485,29 +1479,12 @@ get_output_caps (GstOMXVideoEnc * self)
   return caps;
 }
 
-static GstPadProbeReturn
-drop_discont_cb (GstPad * pad, GstPadProbeInfo * info, gpointer user_data)
-{
-  GstOMXVideoEnc *self = user_data;
-  GstBuffer *buffer;
-
-  buffer = gst_pad_probe_info_get_buffer (info);
-  if (GST_BUFFER_FLAG_IS_SET (buffer, GST_BUFFER_FLAG_DISCONT)) {
-    GST_BUFFER_FLAG_UNSET (buffer, GST_BUFFER_FLAG_DISCONT);
-    self->drop_discont_probe = 0;
-    return GST_PAD_PROBE_REMOVE;
-  }
-
-  return GST_PAD_PROBE_OK;
-}
-
 static GstFlowReturn
 gst_omx_video_enc_handle_output_frame (GstOMXVideoEnc * self, GstOMXPort * port,
     GstOMXBuffer * buf, GstVideoCodecFrame * frame)
 {
   GstOMXVideoEncClass *klass = GST_OMX_VIDEO_ENC_GET_CLASS (self);
   GstFlowReturn flow_ret = GST_FLOW_OK;
-  gboolean drop_next_discont = FALSE;
 
   if ((buf->omx_buf->nFlags & OMX_BUFFERFLAG_CODECCONFIG)
       && buf->omx_buf->nFilledLen > 0) {
@@ -1576,15 +1553,6 @@ gst_omx_video_enc_handle_output_frame (GstOMXVideoEnc * self, GstOMXPort * port,
       GST_BUFFER_PTS (outbuf) = frame->pts;
       GST_BUFFER_DTS (outbuf) = frame->dts;
 
-      /* gst_video_encoder_finish_frame() will mark the first frame as DISCONT while
-       * it should be set on the first subframe of the first frame.
-       * Put the flag ourself on the first subframe buffer and setup a probe to remove
-       * it from the buffer pushed by finish_frame(). */
-      if (frame->presentation_frame_number == 0 && !self->drop_discont_probe) {
-        GST_BUFFER_FLAG_SET (outbuf, GST_BUFFER_FLAG_DISCONT);
-        drop_next_discont = TRUE;
-      }
-
       gst_video_codec_frame_unref (frame);
       frame = NULL;
 
@@ -1614,11 +1582,6 @@ gst_omx_video_enc_handle_output_frame (GstOMXVideoEnc * self, GstOMXPort * port,
   } else if (frame != NULL) {
     flow_ret = gst_video_encoder_finish_frame (GST_VIDEO_ENCODER (self), frame);
   }
-
-  if (drop_next_discont)
-    self->drop_discont_probe =
-        gst_pad_add_probe (GST_VIDEO_ENCODER_SRC_PAD (self),
-        GST_PAD_PROBE_TYPE_BUFFER, drop_discont_cb, self, NULL);
 
   return flow_ret;
 }
