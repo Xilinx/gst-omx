@@ -50,6 +50,13 @@ enum
 G_DEFINE_TYPE_WITH_CODE (GstOMXH264Dec, gst_omx_h264_dec,
     GST_TYPE_OMX_VIDEO_DEC, DEBUG_INIT);
 
+/* The Synq supports decoding subframes */
+#ifdef USE_OMX_TARGET_ZYNQ_USCALE_PLUS
+#define ALIGNMENT "{ au, nal }"
+#else
+#define ALIGNMENT "au"
+#endif
+
 static void
 gst_omx_h264_dec_class_init (GstOMXH264DecClass * klass)
 {
@@ -61,7 +68,7 @@ gst_omx_h264_dec_class_init (GstOMXH264DecClass * klass)
   videodec_class->set_format = GST_DEBUG_FUNCPTR (gst_omx_h264_dec_set_format);
 
   videodec_class->cdata.default_sink_template_caps = "video/x-h264, "
-      "alignment=(string) au, "
+      "alignment=(string) " ALIGNMENT ", "
       "stream-format=(string) byte-stream, "
       "width=(int) [1,MAX], " "height=(int) [1,MAX]";
 
@@ -86,7 +93,8 @@ gst_omx_h264_dec_is_format_change (GstOMXVideoDec * dec,
   GstCaps *old_caps = NULL;
   GstCaps *new_caps = state->caps;
   GstStructure *old_structure, *new_structure;
-  const gchar *old_profile, *old_level, *new_profile, *new_level;
+  const gchar *old_profile, *old_level, *old_alignment, *new_profile,
+      *new_level, *new_alignment;
 
   if (dec->input_state) {
     old_caps = dec->input_state->caps;
@@ -100,11 +108,14 @@ gst_omx_h264_dec_is_format_change (GstOMXVideoDec * dec,
   new_structure = gst_caps_get_structure (new_caps, 0);
   old_profile = gst_structure_get_string (old_structure, "profile");
   old_level = gst_structure_get_string (old_structure, "level");
+  old_alignment = gst_structure_get_string (old_structure, "alignment");
   new_profile = gst_structure_get_string (new_structure, "profile");
   new_level = gst_structure_get_string (new_structure, "level");
+  new_alignment = gst_structure_get_string (new_structure, "alignment");
 
   if (g_strcmp0 (old_profile, new_profile) != 0
-      || g_strcmp0 (old_level, new_level) != 0) {
+      || g_strcmp0 (old_level, new_level) != 0
+      || g_strcmp0 (old_alignment, new_alignment) != 0) {
     return TRUE;
   }
 
@@ -170,6 +181,20 @@ unsupported_level:
 }
 
 static gboolean
+set_subframe_mode (GstOMXVideoDec * self, GstVideoCodecState * state)
+{
+  const GstStructure *s;
+  const gchar *alignment;
+  gboolean enabled;
+
+  s = gst_caps_get_structure (state->caps, 0);
+  alignment = gst_structure_get_string (s, "alignment");
+  enabled = g_strcmp0 (alignment, "nal") == 0;
+
+  return gst_omx_port_set_subframe (self->dec_in_port, enabled);
+}
+
+static gboolean
 gst_omx_h264_dec_set_format (GstOMXVideoDec * dec, GstOMXPort * port,
     GstVideoCodecState * state)
 {
@@ -187,6 +212,8 @@ gst_omx_h264_dec_set_format (GstOMXVideoDec * dec, GstOMXPort * port,
     if (!set_profile_and_level (GST_OMX_H264_DEC (dec), state))
       return FALSE;
   }
+
+  set_subframe_mode (dec, state);
 
   return TRUE;
 }
