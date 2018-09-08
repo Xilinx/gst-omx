@@ -1745,7 +1745,6 @@ gst_omx_video_enc_loop (GstOMXVideoEnc * self)
       gst_omx_buffer_flags_to_string (buf->omx_buf->nFlags),
       (guint64) GST_OMX_GET_TICKS (buf->omx_buf->nTimeStamp));
 
-  GST_VIDEO_ENCODER_STREAM_LOCK (self);
   frame = gst_omx_video_find_nearest_frame (buf,
       gst_video_encoder_get_frames (GST_VIDEO_ENCODER (self)));
 
@@ -1758,14 +1757,14 @@ gst_omx_video_enc_loop (GstOMXVideoEnc * self)
   if (err != OMX_ErrorNone)
     goto release_error;
 
+  GST_VIDEO_ENCODER_STREAM_LOCK (self);
   self->downstream_flow_ret = flow_ret;
+  GST_VIDEO_ENCODER_STREAM_UNLOCK (self);
 
   GST_DEBUG_OBJECT (self, "Read frame from component");
 
   if (flow_ret != GST_FLOW_OK)
     goto flow_error;
-
-  GST_VIDEO_ENCODER_STREAM_UNLOCK (self);
 
   return;
 
@@ -1803,12 +1802,11 @@ eos:
 
     GST_VIDEO_ENCODER_STREAM_LOCK (self);
     self->downstream_flow_ret = flow_ret;
+    GST_VIDEO_ENCODER_STREAM_UNLOCK (self);
 
     /* Here we fallback and pause the task for the EOS case */
     if (flow_ret != GST_FLOW_OK)
       goto flow_error;
-
-    GST_VIDEO_ENCODER_STREAM_UNLOCK (self);
 
     return;
   }
@@ -1829,7 +1827,6 @@ flow_error:
       GST_DEBUG_OBJECT (self, "Flushing -- stopping task");
     }
     gst_omx_video_enc_pause_loop (self, flow_ret);
-    GST_VIDEO_ENCODER_STREAM_UNLOCK (self);
     return;
   }
 reconfigure_error:
@@ -1854,7 +1851,6 @@ release_error:
             gst_omx_error_to_string (err), err));
     gst_pad_push_event (GST_VIDEO_ENCODER_SRC_PAD (self), gst_event_new_eos ());
     gst_omx_video_enc_pause_loop (self, GST_FLOW_ERROR);
-    GST_VIDEO_ENCODER_STREAM_UNLOCK (self);
     return;
   }
 }
