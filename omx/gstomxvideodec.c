@@ -2107,12 +2107,11 @@ eos:
 
     GST_VIDEO_DECODER_STREAM_LOCK (self);
     self->downstream_flow_ret = flow_ret;
+    GST_VIDEO_DECODER_STREAM_UNLOCK (self);
 
     /* Here we fallback and pause the task for the EOS case */
     if (flow_ret != GST_FLOW_OK)
       goto flow_error;
-
-    GST_VIDEO_DECODER_STREAM_UNLOCK (self);
 
     return;
   }
@@ -2153,7 +2152,6 @@ invalid_buffer:
         ("Invalid sized input buffer"));
     gst_pad_push_event (GST_VIDEO_DECODER_SRC_PAD (self), gst_event_new_eos ());
     gst_omx_video_dec_pause_loop (self, GST_FLOW_NOT_NEGOTIATED);
-    GST_VIDEO_DECODER_STREAM_UNLOCK (self);
     return;
   }
 
