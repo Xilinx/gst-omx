@@ -53,7 +53,7 @@
 GST_DEBUG_CATEGORY (gstomx_debug);
 #define GST_CAT_DEFAULT gstomx_debug
 
-GST_DEBUG_CATEGORY_STATIC (OMX_PERFORMANCE);
+GST_DEBUG_CATEGORY_STATIC (OMX_API_TRACE);
 
 /* Macros used to log result of OMX calls. Use the requested debug level if the
  * operation succeeded and GST_LEVEL_ERROR if not.
@@ -614,18 +614,18 @@ log_omx_performance_event (GstOMXComponent * comp, OMX_EVENTTYPE event,
   GstStructure *s;
 
   /* Don't bother creating useless structs if not needed */
-  if (gst_debug_category_get_threshold (OMX_PERFORMANCE) < GST_LEVEL_DEBUG)
+  if (gst_debug_category_get_threshold (OMX_API_TRACE) < GST_LEVEL_DEBUG)
     return;
 
   s = omx_event_to_debug_struct (event, data1, data2, event_data);
   if (!s) {
-    GST_CAT_WARNING_OBJECT (OMX_PERFORMANCE, comp->parent,
+    GST_CAT_WARNING_OBJECT (OMX_API_TRACE, comp->parent,
         "invalid event 0x%08x Data1 %u Data2 %u EventData %p", event, data1,
         data2, event_data);
     return;
   }
 
-  GST_CAT_DEBUG_OBJECT (OMX_PERFORMANCE, comp->parent, "%" GST_PTR_FORMAT, s);
+  GST_CAT_DEBUG_OBJECT (OMX_API_TRACE, comp->parent, "%" GST_PTR_FORMAT, s);
 
   gst_structure_free (s);
 }
@@ -803,7 +803,7 @@ log_omx_performance_buffer (GstOMXComponent * comp, const gchar * event,
   GstStructure *s;
 
   /* Don't bother creating useless structs if not needed */
-  if (gst_debug_category_get_threshold (OMX_PERFORMANCE) < GST_LEVEL_TRACE)
+  if (gst_debug_category_get_threshold (OMX_API_TRACE) < GST_LEVEL_TRACE)
     return;
 
   if (buf) {
@@ -834,7 +834,7 @@ log_omx_performance_buffer (GstOMXComponent * comp, const gchar * event,
     s = gst_structure_new_empty (event);
   }
 
-  GST_CAT_TRACE_OBJECT (OMX_PERFORMANCE, comp->parent, "%" GST_PTR_FORMAT, s);
+  GST_CAT_TRACE_OBJECT (OMX_API_TRACE, comp->parent, "%" GST_PTR_FORMAT, s);
 
   gst_structure_free (s);
 }
@@ -1109,17 +1109,17 @@ log_omx_performance_send_command (GstOMXComponent * comp, OMX_COMMANDTYPE cmd,
   GstStructure *s;
 
   /* Don't bother creating useless structs if not needed */
-  if (gst_debug_category_get_threshold (OMX_PERFORMANCE) < GST_LEVEL_DEBUG)
+  if (gst_debug_category_get_threshold (OMX_API_TRACE) < GST_LEVEL_DEBUG)
     return;
 
   s = omx_command_to_debug_struct (cmd, param, cmd_data);
   if (!s) {
-    GST_CAT_WARNING_OBJECT (OMX_PERFORMANCE, comp->parent,
+    GST_CAT_WARNING_OBJECT (OMX_API_TRACE, comp->parent,
         "invalid command 0x%08x Param %u CmdData %p", cmd, param, cmd_data);
     return;
   }
 
-  GST_CAT_DEBUG_OBJECT (OMX_PERFORMANCE, comp->parent, "%" GST_PTR_FORMAT, s);
+  GST_CAT_DEBUG_OBJECT (OMX_API_TRACE, comp->parent, "%" GST_PTR_FORMAT, s);
 
   gst_structure_free (s);
 }
@@ -3432,7 +3432,7 @@ plugin_init (GstPlugin * plugin)
   GST_DEBUG_CATEGORY_INIT (gstomx_debug, "omx", 0, "gst-omx");
   GST_DEBUG_CATEGORY_INIT (gst_omx_video_debug_category, "omxvideo", 0,
       "gst-omx-video");
-  GST_DEBUG_CATEGORY_INIT (OMX_PERFORMANCE, "OMX_PERFORMANCE", 0,
+  GST_DEBUG_CATEGORY_INIT (OMX_API_TRACE, "OMX_API_TRACE", 0,
       "gst-omx performace");
 
   gst_omx_buffer_data_quark = g_quark_from_static_string ("GstOMXBufferData");
