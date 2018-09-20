@@ -2867,7 +2867,6 @@ gst_omx_video_dec_handle_frame (GstVideoDecoder * decoder,
 {
   GstOMXAcquireBufferReturn acq_ret = GST_OMX_ACQUIRE_BUFFER_ERROR;
   GstOMXVideoDec *self;
-  GstOMXVideoDecClass *klass;
   GstOMXPort *port;
   GstOMXBuffer *buf;
   GstBuffer *codec_data = NULL;
@@ -2879,7 +2878,6 @@ gst_omx_video_dec_handle_frame (GstVideoDecoder * decoder,
   guint memory_idx = 0;         /* only used in dynamic buffer mode */
 
   self = GST_OMX_VIDEO_DEC (decoder);
-  klass = GST_OMX_VIDEO_DEC_GET_CLASS (self);
 
   GST_DEBUG_OBJECT (self, "Handling frame");
 
@@ -2906,19 +2904,6 @@ gst_omx_video_dec_handle_frame (GstVideoDecoder * decoder,
 
   timestamp = frame->pts;
   duration = frame->duration;
-
-  if (klass->prepare_frame) {
-    GstFlowReturn ret;
-
-    ret = klass->prepare_frame (self, frame);
-    if (ret != GST_FLOW_OK) {
-      GST_ERROR_OBJECT (self, "Preparing frame failed: %s",
-          gst_flow_get_name (ret));
-      gst_video_codec_frame_unref (frame);
-      return ret;
-    }
-  }
-
   port = self->dec_in_port;
 
   size = gst_buffer_get_size (frame->input_buffer);
