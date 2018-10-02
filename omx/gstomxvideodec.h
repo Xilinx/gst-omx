@@ -69,6 +69,8 @@ struct _GstOMXVideoDec
   gboolean disabled;
 
   GstClockTime last_upstream_ts;
+  GstClockTime last_subframe_ts;
+  GstVideoCodecFrame *current_frame;
 
   /* Draining state */
   GMutex drain_lock;
@@ -97,6 +99,7 @@ struct _GstOMXVideoDec
   GstOMXBufferAllocation input_allocation;
   /* Number of buffers allocated upstream */
   guint nb_upstream_buffers;
+  gboolean subframe_input;
 
   /* properties */
 #ifdef USE_OMX_TARGET_ZYNQ_USCALE_PLUS
@@ -113,6 +116,7 @@ struct _GstOMXVideoDecClass
 
   gboolean (*is_format_change) (GstOMXVideoDec * self, GstOMXPort * port, GstVideoCodecState * state);
   gboolean (*set_format)       (GstOMXVideoDec * self, GstOMXPort * port, GstVideoCodecState * state);
+  gboolean (*is_new_frame) (GstOMXVideoDec * self, guint8 * data, gsize size);
 };
 
 GType gst_omx_video_dec_get_type (void);

@@ -66,6 +66,21 @@ G_DEFINE_TYPE_WITH_CODE (GstOMXH265Dec, gst_omx_h265_dec,
 #define SINK_CAPS MAKE_CAPS ("au")
 #endif
 
+static gboolean
+gst_omx_h265_dec_is_new_frame (GstOMXVideoDec * decoder, guint8 * data,
+    gsize size)
+{
+  guint8 type_byte;
+
+  if (data[3] == 1)
+    type_byte = data[4];
+  else
+    type_byte = data[3];
+
+  /* For now, just assume we have h265parse which guaranty AUD (type 35) */
+  return ((type_byte >> 1) & 0x3f) == 35;
+}
+
 static void
 gst_omx_h265_dec_class_init (GstOMXH265DecClass * klass)
 {
@@ -75,6 +90,8 @@ gst_omx_h265_dec_class_init (GstOMXH265DecClass * klass)
   videodec_class->is_format_change =
       GST_DEBUG_FUNCPTR (gst_omx_h265_dec_is_format_change);
   videodec_class->set_format = GST_DEBUG_FUNCPTR (gst_omx_h265_dec_set_format);
+  videodec_class->is_new_frame =
+      GST_DEBUG_FUNCPTR (gst_omx_h265_dec_is_new_frame);
 
   videodec_class->cdata.default_sink_template_caps = SINK_CAPS;
 
@@ -202,6 +219,9 @@ set_subframe_mode (GstOMXVideoDec * self, GstVideoCodecState * state)
   s = gst_caps_get_structure (state->caps, 0);
   alignment = gst_structure_get_string (s, "alignment");
   enabled = g_strcmp0 (alignment, "nal") == 0;
+
+  gst_video_decoder_set_packetized (GST_VIDEO_DECODER_CAST (self), !enabled);
+  GST_OMX_VIDEO_DEC (self)->subframe_input = enabled;
 
   return gst_omx_port_set_subframe (self->dec_in_port, enabled);
 }

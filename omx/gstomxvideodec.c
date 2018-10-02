@@ -85,6 +85,8 @@ static OMX_ERRORTYPE gst_omx_video_dec_allocate_output_buffers (GstOMXVideoDec *
     self);
 static gboolean gst_omx_video_dec_deallocate_output_buffers (GstOMXVideoDec
     * self);
+static GstFlowReturn gst_omx_video_dec_parse (GstVideoDecoder * decoder,
+    GstVideoCodecFrame * frame, GstAdapter * adapter, gboolean at_eos);
 
 enum
 {
@@ -260,6 +262,7 @@ gst_omx_video_dec_class_init (GstOMXVideoDecClass * klass)
       GST_DEBUG_FUNCPTR (gst_omx_video_dec_propose_allocation);
   video_decoder_class->sink_event =
       GST_DEBUG_FUNCPTR (gst_omx_video_dec_sink_event);
+  video_decoder_class->parse = GST_DEBUG_FUNCPTR (gst_omx_video_dec_parse);
 
   klass->cdata.type = GST_OMX_COMPONENT_TYPE_FILTER;
   klass->cdata.default_src_template_caps =
@@ -2084,6 +2087,7 @@ gst_omx_video_dec_start (GstVideoDecoder * decoder)
   self = GST_OMX_VIDEO_DEC (decoder);
 
   self->last_upstream_ts = 0;
+  self->last_subframe_ts = 0;
   self->downstream_flow_ret = GST_FLOW_OK;
   self->use_buffers = FALSE;
   self->nb_upstream_buffers = 0;
@@ -2099,6 +2103,11 @@ gst_omx_video_dec_stop (GstVideoDecoder * decoder)
   self = GST_OMX_VIDEO_DEC (decoder);
 
   GST_DEBUG_OBJECT (self, "Stopping decoder");
+
+  if (self->current_frame) {
+    gst_video_codec_frame_unref (self->current_frame);
+    self->current_frame = NULL;
+  }
 
   gst_omx_port_set_flushing (self->dec_in_port, 5 * GST_SECOND, TRUE);
   gst_omx_port_set_flushing (self->dec_out_port, 5 * GST_SECOND, TRUE);
@@ -2855,7 +2864,7 @@ gst_omx_video_dec_flush (GstVideoDecoder * decoder)
 static GstFlowReturn
 gst_omx_video_dec_handle_input_buffer (GstOMXVideoDec * self,
     GstBuffer * input, GstClockTime timestamp, GstClockTime duration,
-    gboolean sync_point, gboolean * drop)
+    gboolean sync_point, gboolean end_of_frame, gboolean * drop)
 {
   GstOMXAcquireBufferReturn acq_ret = GST_OMX_ACQUIRE_BUFFER_ERROR;
   GstOMXPort *port;
@@ -3089,12 +3098,7 @@ gst_omx_video_dec_handle_input_buffer (GstOMXVideoDec * self,
      */
 
     if (done) {
-#ifdef USE_OMX_TARGET_ZYNQ_USCALE_PLUS
-      /* If the input buffer is a subframe mark the OMX buffer as such */
-      if (GST_BUFFER_FLAG_IS_SET (input, GST_OMX_BUFFER_FLAG_SUBFRAME))
-        buf->omx_buf->nFlags |= OMX_BUFFERFLAG_ENDOFSUBFRAME;
-      else
-#endif
+      if (end_of_frame)
         buf->omx_buf->nFlags |= OMX_BUFFERFLAG_ENDOFFRAME;
     }
 
@@ -3186,15 +3190,31 @@ gst_omx_video_dec_handle_frame (GstVideoDecoder * decoder,
 {
   GstOMXVideoDec *self;
   GstFlowReturn ret;
+  GstBuffer *buf;
   gboolean drop;
+  gboolean end_of_frame = TRUE;
 
   self = GST_OMX_VIDEO_DEC (decoder);
 
-  GST_DEBUG_OBJECT (self, "Handling frame");
+  GST_DEBUG_OBJECT (self, "Handling frame size %ld",
+      gst_buffer_get_size (frame->input_buffer));
+
+  if (self->subframe_input) {
+    /* This is called on AUD NAL so the first subframe of a new frame */
+    end_of_frame = FALSE;
+    /* When parse() is called, we endup with the recursive stream lock being
+     * taken twice, but the code still expect to be able to unlock. Drop
+     * temporily the extra reference on this lock */
+    GST_VIDEO_DECODER_STREAM_UNLOCK (self);
+  }
 
   ret = gst_omx_video_dec_handle_input_buffer (self, frame->input_buffer,
       frame->pts, frame->duration, GST_VIDEO_CODEC_FRAME_IS_SYNC_POINT (frame),
-      &drop);
+      end_of_frame, &drop);
+
+  if (self->subframe_input)
+    GST_VIDEO_DECODER_STREAM_LOCK (self);
+
   if (ret != GST_FLOW_OK) {
     gst_video_codec_frame_unref (frame);
     return ret;
@@ -3205,11 +3225,18 @@ gst_omx_video_dec_handle_frame (GstVideoDecoder * decoder,
     return GST_FLOW_OK;
   }
 
-  if (GST_BUFFER_FLAG_IS_SET (frame->input_buffer,
-          GST_OMX_BUFFER_FLAG_SUBFRAME)) {
-    /* Decoder base class isn't handling subframes so release it manually so they don't
-     * pile up in its frames list. */
-    gst_video_decoder_release_frame (decoder, frame);
+  /* Only keep the META around, as these will be transfered on
+   * _finish_frame(). This will allow returning input buffer upstream
+   * as soon as we don't need them */
+  buf = frame->input_buffer;
+  frame->input_buffer = gst_buffer_copy_region (buf, GST_BUFFER_COPY_META, 0,
+      -1);
+  gst_buffer_unref (buf);
+
+  if (self->subframe_input) {
+    if (self->current_frame)
+      gst_video_codec_frame_unref (self->current_frame);
+    self->current_frame = frame;
   } else {
     gst_video_codec_frame_unref (frame);
   }
@@ -3248,6 +3275,11 @@ gst_omx_video_dec_finish (GstVideoDecoder * decoder)
     return GST_FLOW_OK;
   }
   self->started = FALSE;
+
+  if (self->current_frame) {
+    gst_video_codec_frame_unref (self->current_frame);
+    self->current_frame = NULL;
+  }
 
   if ((klass->cdata.hacks & GST_OMX_HACK_NO_EMPTY_EOS_BUFFER)) {
     GST_WARNING_OBJECT (self, "Component does not support empty EOS buffers");
@@ -3455,4 +3487,94 @@ gst_omx_video_dec_sink_event (GstVideoDecoder * decoder, GstEvent * event)
   return
       GST_VIDEO_DECODER_CLASS (gst_omx_video_dec_parent_class)->sink_event
       (decoder, event);
+}
+
+static gboolean
+is_new_frame (GstOMXVideoDec * self, GstBuffer * buf)
+{
+  GstMapInfo map;
+  gboolean result;
+  GstOMXVideoDecClass *klass = GST_OMX_VIDEO_DEC_GET_CLASS (self);
+
+  g_assert (klass->is_new_frame);
+
+  if (!gst_buffer_map (buf, &map, GST_MAP_READ)) {
+    GST_ERROR_OBJECT (self, "Failed to map buffer");
+    return FALSE;
+  }
+
+  result = klass->is_new_frame (self, map.data, map.size);
+
+  gst_buffer_unmap (buf, &map);
+  return result;
+}
+
+static GstFlowReturn
+gst_omx_video_dec_parse (GstVideoDecoder * decoder, GstVideoCodecFrame * frame,
+    GstAdapter * adapter, gboolean at_eos)
+{
+  GstOMXVideoDec *self = GST_OMX_VIDEO_DEC (decoder);
+  GstBuffer *buf;
+  gsize s;
+  GstFlowReturn ret;
+  gboolean drop;
+
+  g_assert (self->subframe_input);
+
+  /* The input is actually packetized (alignment=nal) so we know that the input
+   * adapter holds one single NAL */
+  s = gst_adapter_available (adapter);
+  buf = gst_adapter_get_buffer_fast (adapter, s);
+  if (!buf) {
+    GST_WARNING_OBJECT (decoder, "Failed to get buffer from adapter");
+    return GST_FLOW_ERROR;
+  }
+
+  GST_DEBUG_OBJECT (self, "Handling subframe (size=%" G_GSIZE_FORMAT ")",
+      gst_buffer_get_size (buf));
+
+  /* Parser will only set PTS on the first subframe */
+  if (!GST_BUFFER_PTS_IS_VALID (buf))
+    GST_BUFFER_PTS (buf) = self->last_subframe_ts;
+  else
+    self->last_subframe_ts = GST_BUFFER_PTS (buf);
+
+  if (is_new_frame (self, buf)) {
+    GST_DEBUG_OBJECT (self, "First subframe of a new frame");
+    gst_buffer_unref (buf);
+    gst_video_decoder_add_to_frame (decoder, s);
+    gst_video_decoder_have_frame (decoder);
+
+    if (self->current_frame &&
+        !GST_CLOCK_TIME_IS_VALID (self->current_frame->duration)) {
+      self->current_frame->duration = 0;
+    }
+
+    return GST_FLOW_OK;
+  }
+
+  /* Aggregate metas */
+  if (self->current_frame) {
+    gst_buffer_copy_into (self->current_frame->input_buffer, buf,
+        GST_BUFFER_COPY_META, 0, -1);
+
+    if (GST_CLOCK_TIME_IS_VALID (GST_BUFFER_DURATION (buf)))
+      self->current_frame->duration += GST_BUFFER_DURATION (buf);
+  }
+
+  gst_adapter_flush (adapter, s);
+
+  ret = gst_omx_video_dec_handle_input_buffer (self, buf,
+      GST_BUFFER_PTS (buf), GST_BUFFER_DURATION (buf),
+      !GST_BUFFER_FLAG_IS_SET (buf, GST_BUFFER_FLAG_DELTA_UNIT),
+      GST_BUFFER_FLAG_IS_SET (buf, GST_BUFFER_FLAG_MARKER), &drop);
+
+  gst_buffer_unref (buf);
+
+  if (ret != GST_FLOW_OK || drop)
+    return GST_FLOW_OK;
+
+  GST_DEBUG_OBJECT (self, "Passed subframe to component");
+
+  return self->downstream_flow_ret;
 }

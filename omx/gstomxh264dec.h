@@ -22,6 +22,7 @@
 #define __GST_OMX_H264_DEC_H__
 
 #include <gst/gst.h>
+
 #include "gstomxvideodec.h"
 
 G_BEGIN_DECLS
