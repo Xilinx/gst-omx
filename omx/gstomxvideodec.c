@@ -3539,7 +3539,7 @@ gst_omx_video_dec_parse (GstVideoDecoder * decoder, GstVideoCodecFrame * frame,
   else
     self->last_subframe_ts = GST_BUFFER_PTS (buf);
 
-  if (is_new_frame (self, buf)) {
+  if (self->marker || is_new_frame (self, buf)) {
     GST_DEBUG_OBJECT (self, "First subframe of a new frame");
     gst_buffer_unref (buf);
     gst_video_decoder_add_to_frame (decoder, s);
@@ -3550,8 +3550,13 @@ gst_omx_video_dec_parse (GstVideoDecoder * decoder, GstVideoCodecFrame * frame,
       self->current_frame->duration = 0;
     }
 
+    self->marker = GST_BUFFER_FLAG_IS_SET (buf, GST_BUFFER_FLAG_MARKER);
+
     return GST_FLOW_OK;
   }
+
+  /* Remember if we met a marker */
+  self->marker = GST_BUFFER_FLAG_IS_SET (buf, GST_BUFFER_FLAG_MARKER);
 
   /* Aggregate metas */
   if (self->current_frame) {

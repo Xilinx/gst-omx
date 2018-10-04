@@ -67,6 +67,8 @@ struct _GstOMXVideoDec
   gboolean started;
    /* TRUE if the ports where disabled after being activated the first time. */
   gboolean disabled;
+  /* TRUE if the last buffer was a MARKER */
+  gboolean marker;
 
   GstClockTime last_upstream_ts;
   GstClockTime last_subframe_ts;
