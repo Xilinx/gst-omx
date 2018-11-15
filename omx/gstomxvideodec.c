@@ -1169,7 +1169,6 @@ gst_omx_video_dec_allocate_output_buffers (GstOMXVideoDec * self)
       goto done;
     }
 
-    GST_OMX_BUFFER_POOL (self->out_port_pool)->allocating = TRUE;
     /* This now allocates all the buffers */
     if (!gst_buffer_pool_set_active (self->out_port_pool, TRUE)) {
       GST_INFO_OBJECT (self, "Failed to activate internal pool");
@@ -1177,8 +1176,6 @@ gst_omx_video_dec_allocate_output_buffers (GstOMXVideoDec * self)
       self->out_port_pool = NULL;
     } else {
       GstEvent *event;
-
-      GST_OMX_BUFFER_POOL (self->out_port_pool)->allocating = FALSE;
 
       event = gst_event_new_custom (GST_EVENT_CUSTOM_DOWNSTREAM,
           gst_structure_new ("buffers-allocated",
