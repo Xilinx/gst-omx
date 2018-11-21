@@ -1366,6 +1366,33 @@ gst_omx_video_dec_get_output_interlace_info (GstOMXVideoDec * self)
   return GST_VIDEO_INTERLACE_MODE_PROGRESSIVE;
 }
 
+#if defined (HAVE_GST_GL)
+static void
+add_caps_gl_memory_feature (GstCaps * caps)
+{
+  GstCapsFeatures *old, *features;
+
+  features = gst_caps_features_new_empty ();
+  old = gst_caps_get_features (caps, 0);
+
+  if (old) {
+    guint i;
+
+    /* Copy the existing features ignoring memory ones as we are changing
+     * it to GL. */
+    for (i = 0; i < gst_caps_features_get_size (old); i++) {
+      const gchar *f = gst_caps_features_get_nth (old, i);
+
+      if (!g_str_has_prefix (f, "memory:"))
+        gst_caps_features_add (features, f);
+    }
+  }
+
+  gst_caps_features_add (features, GST_CAPS_FEATURE_MEMORY_GL_MEMORY);
+  gst_caps_set_features (caps, 0, features);
+}
+#endif
+
 static OMX_ERRORTYPE
 gst_omx_video_dec_reconfigure_output_port (GstOMXVideoDec * self)
 {
@@ -1415,8 +1442,7 @@ gst_omx_video_dec_reconfigure_output_port (GstOMXVideoDec * self)
       if (state->caps)
         gst_caps_unref (state->caps);
       state->caps = gst_video_info_to_caps (&state->info);
-      gst_caps_set_features (state->caps, 0,
-          gst_caps_features_new (GST_CAPS_FEATURE_MEMORY_GL_MEMORY, NULL));
+      add_caps_gl_memory_feature (state->caps);
 
       /* try to negotiate with caps feature */
       if (!gst_video_decoder_negotiate (GST_VIDEO_DECODER (self))) {
