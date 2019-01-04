@@ -34,6 +34,10 @@
 
 G_BEGIN_DECLS
 
+/* Keep synced with gst_omx_video_get_format_from_omx() */
+#define GST_OMX_VIDEO_SUPPORTED_FORMATS "{ GRAY8, I420, NV12, NV16, YUY2, YVYU, UYVY, " \
+  "ABGR, ARGB, RGB16, BGR16, BGR, NV12_10LE32, NV16_10LE32 }"
+
 typedef struct
 {
   GstVideoFormat format;
