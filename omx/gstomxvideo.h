@@ -34,9 +34,14 @@
 
 G_BEGIN_DECLS
 
+#ifdef USE_OMX_TARGET_ZYNQ_USCALE_PLUS
+/* List ZynqUltraScalePlus target supported formats only */
+#define GST_OMX_VIDEO_SUPPORTED_FORMATS "{ NV12, NV16, NV12_10LE32, NV16_10LE32, GRAY8, GRAY10_LE32 }"
+#else
 /* Keep synced with gst_omx_video_get_format_from_omx(). Sort by decreasing quality */
 #define GST_OMX_VIDEO_SUPPORTED_FORMATS "{ NV16_10LE32, NV12_10LE32, " \
   "NV16, YUY2, YVYU, UYVY, NV12, I420, RGB16, BGR16, ABGR, ARGB, BGR, GRAY8 }"
+#endif
 
 typedef struct
 {
