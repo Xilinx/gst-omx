@@ -3714,7 +3714,7 @@ gst_omx_video_enc_sink_event (GstVideoEncoder * encoder, GstEvent * event)
         return TRUE;
       }
 #ifdef USE_OMX_TARGET_ZYNQ_USCALE_PLUS
-      else if (gst_event_has_name (event, "omx-alg/scene-change"))
+      else if (gst_event_has_name (event, OMX_ALG_GST_EVENT_SCENE_CHANGE))
         handle_scene_change_event (self, event);
       else if (gst_event_has_name (event, OMX_ALG_GST_EVENT_INSERT_LONGTERM)
           || gst_event_has_name (event, OMX_ALG_GST_EVENT_USE_LONGTERM))
