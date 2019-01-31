@@ -438,7 +438,7 @@ main (int argc, char *argv[])
   const char *summary =
       "Dynamic Bitrate Ex: ./zynqmp_vcu_encode -w 3840 -h 2160 -e avc -f 30 -c 2 -g 30 -o /run/op.h264 -i /run/input.yuv -d BR:100:1000\n"
       "Dynamic Bframes Ex: ./zynqmp_vcu_encode -w 3840 -h 2160 -e hevc -f 30 -c 2 -g 30 -b 4 -o /run/op.h265 -i /run/input.yuv -d BFrm:10:2\n"
-      "ROI Ex: ./zynqmp_vcu_encode -w 3840 -h 2160 -e avc -f 30 -c 2 -g 30 -o /run/op.h264 -i /run/input.yuv -d ROI:1200x300:200x200:high\n\n"
+      "ROI Ex: ./zynqmp_vcu_encode -w 3840 -h 2160 -e avc -f 30 -c 2 -g 30 -o /run/op.h264 -i /run/input.yuv -d ROI:10:1200x300:200x200:high\n\n"
       "Dynamic-string pattern should be:\n"
       "'BR:frm_num:new_value_in_kbps' -> Dynamic Bitrate\n"
       "'BFrm:frame_num:new_value' -> Dynamic Bframes \n"
