@@ -25,7 +25,7 @@
 #include <gst/gst.h>
 #include <gst/video/gstvideometa.h>
 #include <gst/allocators/gstdmabuf.h>
-
+#include <gst/video/video.h>
 #include <string.h>
 
 #include "gstomxbufferpool.h"
@@ -646,6 +646,51 @@ gst_omx_video_enc_init (GstOMXVideoEnc * self)
         gst_omx_error_to_string (err), err); \
     return FALSE; \
   }
+
+static gboolean
+gst_omx_video_enc_set_colorimetry (GstOMXVideoEnc * self)
+{
+  OMX_ALG_VIDEO_PARAM_COLORIMETRY colorimetry_param;
+  GstVideoInfo *info = &self->input_state->info;
+  GstVideoColorimetry cinfo = GST_VIDEO_INFO_COLORIMETRY (info);
+  const gchar *colorimetry_string;
+  OMX_ERRORTYPE err;
+
+  GST_OMX_INIT_STRUCT (&colorimetry_param);
+  colorimetry_param.nPortIndex = self->enc_out_port->index;
+
+  colorimetry_string = gst_video_colorimetry_to_string (&cinfo);
+  if (colorimetry_string) {
+    if (g_str_equal (colorimetry_string, "bt709"))
+      colorimetry_param.eColorimetryMode = OMX_ALG_VIDEO_COLORIMETRY_BT_709;
+    else if (g_str_equal (colorimetry_string, "sRGB"))
+      colorimetry_param.eColorimetryMode = OMX_ALG_VIDEO_COLORIMETRY_SRGB;
+    else if (g_str_equal (colorimetry_string, "bt470m"))
+      colorimetry_param.eColorimetryMode =
+          OMX_ALG_VIDEO_COLORIMETRY_BT_470_NTSC;
+    else if (g_str_equal (colorimetry_string, "bt470bg"))
+      colorimetry_param.eColorimetryMode = OMX_ALG_VIDEO_COLORIMETRY_BT_470_PAL;
+    else if (g_str_equal (colorimetry_string, "bt601"))
+      colorimetry_param.eColorimetryMode = OMX_ALG_VIDEO_COLORIMETRY_BT_601;
+    else if (g_str_equal (colorimetry_string, "bt2020"))
+      colorimetry_param.eColorimetryMode = OMX_ALG_VIDEO_COLORIMETRY_BT_2020;
+    else if (g_str_equal (colorimetry_string, "smpte170m"))
+      colorimetry_param.eColorimetryMode = OMX_ALG_VIDEO_COLORIMETRY_SMPTE_170M;
+    else if (g_str_equal (colorimetry_string, "smpte240m"))
+      colorimetry_param.eColorimetryMode = OMX_ALG_VIDEO_COLORIMETRY_SMPTE_240M;
+    else {
+      GST_WARNING_OBJECT (self,
+          "Provided colorimetry %s is not supported", colorimetry_string);
+      return FALSE;
+    }
+
+    err =
+        gst_omx_component_set_parameter (self->enc,
+        (OMX_INDEXTYPE) OMX_ALG_IndexParamVideoColorimetry, &colorimetry_param);
+    CHECK_ERR ("colorimetry-data");
+  }
+  return TRUE;
+}
 
 static gboolean
 set_zynqultrascaleplus_props (GstOMXVideoEnc * self)
@@ -2665,6 +2710,8 @@ gst_omx_video_enc_set_format (GstVideoEncoder * encoder,
 
 #ifdef USE_OMX_TARGET_ZYNQ_USCALE_PLUS
   gst_omx_video_enc_set_latency (self);
+  if (!gst_omx_video_enc_set_colorimetry (self))
+    return FALSE;
 #endif
 
   self->downstream_flow_ret = GST_FLOW_OK;
