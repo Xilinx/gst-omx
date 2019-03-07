@@ -668,7 +668,7 @@ gst_omx_video_enc_set_colorimetry (GstOMXVideoEnc * self)
   OMX_ERRORTYPE err;
 
   GST_OMX_INIT_STRUCT (&colorimetry_param);
-  colorimetry_param.nPortIndex = self->enc_out_port->index;
+  colorimetry_param.nPortIndex = self->enc_in_port->index;
 
   colorimetry_string = gst_video_colorimetry_to_string (&cinfo);
   if (colorimetry_string) {
