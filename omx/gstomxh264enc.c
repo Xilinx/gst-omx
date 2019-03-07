@@ -241,8 +241,7 @@ gst_omx_h264_enc_class_init (GstOMXH264EncClass * klass)
   videoenc_class->cdata.default_src_template_caps = "video/x-h264, "
       "width = (int) [ 16, 4096 ], height = (int) [ 16, 4096 ], "
       "framerate = (fraction) [0, MAX], stream-format=(string) byte-stream, "
-      "alignment = (string) " ALIGNMENT
-      ", colorimetry = (string) " GST_OMX_VIDEO_COLORIMETRY;
+      "alignment = (string) " ALIGNMENT;
   videoenc_class->handle_output_frame =
       GST_DEBUG_FUNCPTR (gst_omx_h264_enc_handle_output_frame);
 

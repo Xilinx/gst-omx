@@ -186,8 +186,7 @@ gst_omx_h265_enc_class_init (GstOMXH265EncClass * klass)
   videoenc_class->cdata.default_src_template_caps = "video/x-h265, "
       "width=(int) [ 1, MAX ], " "height=(int) [ 1, MAX ], "
       "framerate = (fraction) [0, MAX], stream-format=(string) byte-stream, "
-      "aligmment = (string) " ALIGNMENT
-      ", colorimetry = (string) " GST_OMX_VIDEO_COLORIMETRY;
+      "aligmment = (string) " ALIGNMENT;
 
   gst_element_class_set_static_metadata (element_class,
       "OpenMAX H.265 Video Encoder",

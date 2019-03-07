@@ -43,7 +43,6 @@ G_BEGIN_DECLS
   "ABGR, ARGB, RGB16, BGR16, BGR, NV12_10LE32, NV16_10LE32 }"
 #endif
 
-#define GST_OMX_VIDEO_COLORIMETRY  "{ bt709, sRGB, bt470m, bt470bg, bt601, bt2020, smpte170m, smpte240m }"
 typedef struct
 {
   GstVideoFormat format;
