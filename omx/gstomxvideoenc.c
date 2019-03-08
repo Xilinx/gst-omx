@@ -659,47 +659,64 @@ gst_omx_video_enc_init (GstOMXVideoEnc * self)
   }
 
 static gboolean
-gst_omx_video_enc_set_colorimetry (GstOMXVideoEnc * self)
+gst_omx_video_enc_set_color_primaries (GstOMXVideoEnc * self)
 {
-  OMX_ALG_VIDEO_PARAM_COLOR_PRIMARIES colorimetry_param;
+  OMX_ALG_VIDEO_PARAM_COLOR_PRIMARIES param;
   GstVideoInfo *info = &self->input_state->info;
   GstVideoColorimetry cinfo = GST_VIDEO_INFO_COLORIMETRY (info);
-  const gchar *colorimetry_string;
   OMX_ERRORTYPE err;
 
-  GST_OMX_INIT_STRUCT (&colorimetry_param);
-  colorimetry_param.nPortIndex = self->enc_in_port->index;
+  GST_OMX_INIT_STRUCT (&param);
+  param.nPortIndex = self->enc_in_port->index;
 
-  colorimetry_string = gst_video_colorimetry_to_string (&cinfo);
-  if (colorimetry_string) {
-    if (g_str_equal (colorimetry_string, "bt709"))
-      colorimetry_param.eColorPrimaries = OMX_ALG_VIDEO_COLOR_PRIMARIES_BT_709;
-    else if (g_str_equal (colorimetry_string, "sRGB"))
-      colorimetry_param.eColorPrimaries = OMX_ALG_VIDEO_COLOR_PRIMARIES_BT_709;
-    else if (g_str_equal (colorimetry_string, "bt470m"))
-      colorimetry_param.eColorPrimaries =
-          OMX_ALG_VIDEO_COLOR_PRIMARIES_BT_470_NTSC;
-    else if (g_str_equal (colorimetry_string, "bt470bg"))
-      colorimetry_param.eColorPrimaries = OMX_ALG_VIDEO_COLOR_PRIMARIES_BT_601_PAL;
-    else if (g_str_equal (colorimetry_string, "bt601"))
-      colorimetry_param.eColorPrimaries = OMX_ALG_VIDEO_COLOR_PRIMARIES_BT_601_NTSC;
-    else if (g_str_equal (colorimetry_string, "bt2020"))
-      colorimetry_param.eColorPrimaries = OMX_ALG_VIDEO_COLOR_PRIMARIES_BT_2020;
-    else if (g_str_equal (colorimetry_string, "smpte170m"))
-      colorimetry_param.eColorPrimaries = OMX_ALG_VIDEO_COLOR_PRIMARIES_BT_601_NTSC ;
-    else if (g_str_equal (colorimetry_string, "smpte240m"))
-      colorimetry_param.eColorPrimaries = OMX_ALG_VIDEO_COLOR_PRIMARIES_SMPTE_240M;
-    else {
+  switch (cinfo.primaries) {
+    case GST_VIDEO_COLOR_PRIMARIES_BT709:
+      param.eColorPrimaries = OMX_ALG_VIDEO_COLOR_PRIMARIES_BT_709;
+      break;
+    case GST_VIDEO_COLOR_PRIMARIES_BT470M:
+      param.eColorPrimaries = OMX_ALG_VIDEO_COLOR_PRIMARIES_BT_470_NTSC;
+      break;
+    case GST_VIDEO_COLOR_PRIMARIES_BT470BG:
+      param.eColorPrimaries = OMX_ALG_VIDEO_COLOR_PRIMARIES_BT_601_PAL;
+      break;
+    case GST_VIDEO_COLOR_PRIMARIES_SMPTE170M:
+      param.eColorPrimaries = OMX_ALG_VIDEO_COLOR_PRIMARIES_BT_601_NTSC;
+      break;
+    case GST_VIDEO_COLOR_PRIMARIES_SMPTE240M:
+      param.eColorPrimaries = OMX_ALG_VIDEO_COLOR_PRIMARIES_SMPTE_240M;
+      break;
+    case GST_VIDEO_COLOR_PRIMARIES_FILM:
+      param.eColorPrimaries = OMX_ALG_VIDEO_COLOR_PRIMARIES_GENERIC_FILM;
+      break;
+    case GST_VIDEO_COLOR_PRIMARIES_BT2020:
+      param.eColorPrimaries = OMX_ALG_VIDEO_COLOR_PRIMARIES_BT_2020;
+      break;
+    case GST_VIDEO_COLOR_PRIMARIES_SMPTEST428:
+      param.eColorPrimaries = OMX_ALG_VIDEO_COLOR_PRIMARIES_SMPTE_ST_428;
+      break;
+    case GST_VIDEO_COLOR_PRIMARIES_SMPTERP431:
+      param.eColorPrimaries = OMX_ALG_VIDEO_COLOR_PRIMARIES_SMPTE_RP_431;
+      break;
+    case GST_VIDEO_COLOR_PRIMARIES_SMPTEEG432:
+      param.eColorPrimaries = OMX_ALG_VIDEO_COLOR_PRIMARIES_SMPTE_EG_432;
+      break;
+    case GST_VIDEO_COLOR_PRIMARIES_ADOBERGB:
+    case GST_VIDEO_COLOR_PRIMARIES_UNKNOWN:
+    default:
       GST_WARNING_OBJECT (self,
-          "Provided colorimetry %s is not supported", colorimetry_string);
-      return FALSE;
-    }
-
-    err =
-        gst_omx_component_set_parameter (self->enc,
-        (OMX_INDEXTYPE) OMX_ALG_IndexParamVideoColorPrimaries, &colorimetry_param);
-    CHECK_ERR ("colorimetry-data");
+          "Provided color primaries %d (%s) are not supported", cinfo.primaries,
+          gst_video_colorimetry_to_string (&cinfo));
+      param.eColorPrimaries = OMX_ALG_VIDEO_COLOR_PRIMARIES_UNSPECIFIED;
   }
+
+  GST_DEBUG_OBJECT (self, "Set color primaries to %d (%s)",
+      param.eColorPrimaries, gst_video_colorimetry_to_string (&cinfo));
+
+  err =
+      gst_omx_component_set_parameter (self->enc,
+      (OMX_INDEXTYPE) OMX_ALG_IndexParamVideoColorPrimaries, &param);
+  CHECK_ERR ("color-primaries");
+
   return TRUE;
 }
 
@@ -2763,7 +2780,7 @@ gst_omx_video_enc_set_format (GstVideoEncoder * encoder,
 
 #ifdef USE_OMX_TARGET_ZYNQ_USCALE_PLUS
   gst_omx_video_enc_set_latency (self);
-  if (!gst_omx_video_enc_set_colorimetry (self))
+  if (!gst_omx_video_enc_set_color_primaries (self))
     return FALSE;
 #endif
 
