@@ -661,7 +661,7 @@ gst_omx_video_enc_init (GstOMXVideoEnc * self)
 static gboolean
 gst_omx_video_enc_set_colorimetry (GstOMXVideoEnc * self)
 {
-  OMX_ALG_VIDEO_PARAM_COLORIMETRY colorimetry_param;
+  OMX_ALG_VIDEO_PARAM_COLOR_PRIMARIES colorimetry_param;
   GstVideoInfo *info = &self->input_state->info;
   GstVideoColorimetry cinfo = GST_VIDEO_INFO_COLORIMETRY (info);
   const gchar *colorimetry_string;
@@ -673,22 +673,22 @@ gst_omx_video_enc_set_colorimetry (GstOMXVideoEnc * self)
   colorimetry_string = gst_video_colorimetry_to_string (&cinfo);
   if (colorimetry_string) {
     if (g_str_equal (colorimetry_string, "bt709"))
-      colorimetry_param.eColorimetryMode = OMX_ALG_VIDEO_COLORIMETRY_BT_709;
+      colorimetry_param.eColorPrimaries = OMX_ALG_VIDEO_COLOR_PRIMARIES_BT_709;
     else if (g_str_equal (colorimetry_string, "sRGB"))
-      colorimetry_param.eColorimetryMode = OMX_ALG_VIDEO_COLORIMETRY_SRGB;
+      colorimetry_param.eColorPrimaries = OMX_ALG_VIDEO_COLOR_PRIMARIES_BT_709;
     else if (g_str_equal (colorimetry_string, "bt470m"))
-      colorimetry_param.eColorimetryMode =
-          OMX_ALG_VIDEO_COLORIMETRY_BT_470_NTSC;
+      colorimetry_param.eColorPrimaries =
+          OMX_ALG_VIDEO_COLOR_PRIMARIES_BT_470_NTSC;
     else if (g_str_equal (colorimetry_string, "bt470bg"))
-      colorimetry_param.eColorimetryMode = OMX_ALG_VIDEO_COLORIMETRY_BT_470_PAL;
+      colorimetry_param.eColorPrimaries = OMX_ALG_VIDEO_COLOR_PRIMARIES_BT_601_PAL;
     else if (g_str_equal (colorimetry_string, "bt601"))
-      colorimetry_param.eColorimetryMode = OMX_ALG_VIDEO_COLORIMETRY_BT_601;
+      colorimetry_param.eColorPrimaries = OMX_ALG_VIDEO_COLOR_PRIMARIES_BT_601_NTSC;
     else if (g_str_equal (colorimetry_string, "bt2020"))
-      colorimetry_param.eColorimetryMode = OMX_ALG_VIDEO_COLORIMETRY_BT_2020;
+      colorimetry_param.eColorPrimaries = OMX_ALG_VIDEO_COLOR_PRIMARIES_BT_2020;
     else if (g_str_equal (colorimetry_string, "smpte170m"))
-      colorimetry_param.eColorimetryMode = OMX_ALG_VIDEO_COLORIMETRY_SMPTE_170M;
+      colorimetry_param.eColorPrimaries = OMX_ALG_VIDEO_COLOR_PRIMARIES_BT_601_NTSC ;
     else if (g_str_equal (colorimetry_string, "smpte240m"))
-      colorimetry_param.eColorimetryMode = OMX_ALG_VIDEO_COLORIMETRY_SMPTE_240M;
+      colorimetry_param.eColorPrimaries = OMX_ALG_VIDEO_COLOR_PRIMARIES_SMPTE_240M;
     else {
       GST_WARNING_OBJECT (self,
           "Provided colorimetry %s is not supported", colorimetry_string);
@@ -697,7 +697,7 @@ gst_omx_video_enc_set_colorimetry (GstOMXVideoEnc * self)
 
     err =
         gst_omx_component_set_parameter (self->enc,
-        (OMX_INDEXTYPE) OMX_ALG_IndexParamVideoColorimetry, &colorimetry_param);
+        (OMX_INDEXTYPE) OMX_ALG_IndexParamVideoColorPrimaries, &colorimetry_param);
     CHECK_ERR ("colorimetry-data");
   }
   return TRUE;
