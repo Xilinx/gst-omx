@@ -1378,6 +1378,7 @@ gst_omx_video_dec_get_output_interlace_info (GstOMXVideoDec * self)
   return GST_VIDEO_INTERLACE_MODE_PROGRESSIVE;
 }
 
+#if defined (HAVE_GST_GL)
 static void
 add_caps_gl_memory_feature (GstCaps * caps)
 {
@@ -1402,6 +1403,7 @@ add_caps_gl_memory_feature (GstCaps * caps)
   gst_caps_features_add (features, GST_CAPS_FEATURE_MEMORY_GL_MEMORY);
   gst_caps_set_features (caps, 0, features);
 }
+#endif
 
 static OMX_ERRORTYPE
 gst_omx_video_dec_reconfigure_output_port (GstOMXVideoDec * self)
