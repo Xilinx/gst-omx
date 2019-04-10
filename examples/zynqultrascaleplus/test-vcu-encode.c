@@ -176,7 +176,7 @@ bus_call (GstBus * bus, GstMessage * msg, gpointer data)
 }
 
 static gboolean
-check_parameters ()
+check_parameters (void)
 {
   if (!enc.type)
     enc.type = g_strdup (DEFAULT_ENCODER_TYPE);

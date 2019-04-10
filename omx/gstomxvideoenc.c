@@ -216,7 +216,7 @@ typedef enum
 } GstOMXVideoEncLatencyMode;
 
 static GType
-gst_omx_video_enc_latency_mode_get_type ()
+gst_omx_video_enc_latency_mode_get_type (void)
 {
   static GType qtype = 0;
 
