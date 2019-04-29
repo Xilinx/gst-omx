@@ -1972,6 +1972,8 @@ omx_index_type_to_str (OMX_INDEXTYPE index)
       return "OMX_ALG_IndexConfigVideoQuantizationParameterTable";
     case OMX_ALG_IndexParamVideoInputParsed:
       return "OMX_ALG_IndexParamVideoInputParsed";
+    case OMX_ALG_IndexParamVideoMaxPictureSize:
+      return "OMX_ALG_IndexParamVideoMaxPictureSize";
     case OMX_ALG_IndexMaxEnum:
       return "OMX_ALG_IndexMaxEnum";
   }
