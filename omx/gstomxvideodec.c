@@ -3277,7 +3277,6 @@ gst_omx_video_dec_handle_input_buffer (GstOMXVideoDec * self,
       }
 
       buf->omx_buf->nFlags |= OMX_BUFFERFLAG_CODECCONFIG;
-      buf->omx_buf->nFlags |= OMX_BUFFERFLAG_ENDOFFRAME;
 
       if (GST_CLOCK_TIME_IS_VALID (timestamp))
         GST_OMX_SET_TICKS (buf->omx_buf->nTimeStamp,
@@ -3357,13 +3356,16 @@ gst_omx_video_dec_handle_input_buffer (GstOMXVideoDec * self,
     if (first_ouput_buffer && sync_point)
       buf->omx_buf->nFlags |= OMX_BUFFERFLAG_SYNCFRAME;
 
+    if (header)
+      buf->omx_buf->nFlags |= OMX_BUFFERFLAG_CODECCONFIG;
+
     /* TODO: Set flags
      *   - OMX_BUFFERFLAG_DECODEONLY for buffers that are outside
      *     the segment
      */
 
     if (done) {
-      if (end_of_frame)
+      if (end_of_frame && !header)
         buf->omx_buf->nFlags |= OMX_BUFFERFLAG_ENDOFFRAME;
 #ifdef OMX_BUFFERFLAG_ENDOFSUBFRAME
       /* flag introduced in OMX 1.2.0. Potentially set both flags as demonstrated
