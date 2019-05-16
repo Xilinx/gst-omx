@@ -56,6 +56,8 @@ struct _GstOMXH265Enc
   guint32 loop_filter_mode;
   guint32 gop_length;
 #endif
+
+  GList *headers;
 };
 
 struct _GstOMXH265EncClass
