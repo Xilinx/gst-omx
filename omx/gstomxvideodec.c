@@ -3121,6 +3121,7 @@ gst_omx_video_dec_handle_input_buffer (GstOMXVideoDec * self,
   gboolean done = FALSE;
   gboolean first_ouput_buffer = TRUE;
   guint memory_idx = 0;         /* only used in dynamic buffer mode */
+  gboolean header;
 
   *drop = FALSE;
 
@@ -3128,8 +3129,9 @@ gst_omx_video_dec_handle_input_buffer (GstOMXVideoDec * self,
     return self->downstream_flow_ret;
   }
 
+  header = GST_BUFFER_FLAG_IS_SET (input, GST_BUFFER_FLAG_HEADER);
   if (!self->started) {
-    if (!sync_point) {
+    if (!sync_point && !header) {
       *drop = TRUE;
       return GST_FLOW_OK;
     }
