@@ -1841,6 +1841,7 @@ gst_omx_video_dec_loop (GstOMXVideoDec * self)
   GstOMXPort *port;
   GstOMXBuffer *buf = NULL, *pushed_buf = NULL;
   GstVideoCodecFrame *frame;
+  GList *frames;
   GstFlowReturn flow_ret = GST_FLOW_OK;
   GstOMXAcquireBufferReturn acq_return;
   OMX_ERRORTYPE err;
@@ -1968,8 +1969,19 @@ gst_omx_video_dec_loop (GstOMXVideoDec * self)
       gst_omx_buffer_flags_to_string (buf->omx_buf->nFlags),
       (guint64) GST_OMX_GET_TICKS (buf->omx_buf->nTimeStamp));
 
-  frame = gst_omx_video_find_nearest_frame (GST_ELEMENT_CAST (self), buf,
-      gst_video_decoder_get_frames (GST_VIDEO_DECODER (self)));
+  frames = gst_video_decoder_get_frames (GST_VIDEO_DECODER (self));
+
+  /* In subframe mode all the slices are passed to OMX in the parse() function.
+   * So we may end up with OMX producing the decoded frame *before* we receive
+   * the first slice of the next one. Add the currently parsed frame to the
+   * frames list so we can properly match it in such case. */
+  if (self->current_frame) {
+    frames =
+        g_list_prepend (frames,
+        gst_video_codec_frame_ref (self->current_frame));
+  }
+
+  frame = gst_omx_video_find_nearest_frame (GST_ELEMENT_CAST (self), buf, frames);
 
   /* So we have a timestamped OMX buffer and get, or not, corresponding frame.
    * Assuming decoder output frames in display order, frames preceding this
@@ -3422,31 +3434,25 @@ gst_omx_video_dec_handle_frame (GstVideoDecoder * decoder,
     GstVideoCodecFrame * frame)
 {
   GstOMXVideoDec *self;
-  GstFlowReturn ret;
+  GstFlowReturn ret = GST_FLOW_OK;
   GstBuffer *buf;
-  gboolean drop;
-  gboolean end_of_frame = TRUE;
+  gboolean drop = FALSE;
 
   self = GST_OMX_VIDEO_DEC (decoder);
+
+  if (self->subframe_input) {
+    /* In subframe mode all slices are handled in parse(), so there is nothing
+     * left do here. */
+    gst_video_codec_frame_unref (frame);
+    return GST_FLOW_OK;
+  }
 
   GST_DEBUG_OBJECT (self, "Handling frame size %ld",
       gst_buffer_get_size (frame->input_buffer));
 
-  if (self->subframe_input) {
-    /* This is called on AUD NAL so the first subframe of a new frame */
-    end_of_frame = FALSE;
-    /* When parse() is called, we endup with the recursive stream lock being
-     * taken twice, but the code still expect to be able to unlock. Drop
-     * temporily the extra reference on this lock */
-    GST_VIDEO_DECODER_STREAM_UNLOCK (self);
-  }
-
   ret = gst_omx_video_dec_handle_input_buffer (self, frame->input_buffer,
-      frame->pts, frame->duration, GST_VIDEO_CODEC_FRAME_IS_SYNC_POINT (frame),
-      end_of_frame, &drop);
-
-  if (self->subframe_input)
-    GST_VIDEO_DECODER_STREAM_LOCK (self);
+      frame->pts, frame->duration,
+      GST_VIDEO_CODEC_FRAME_IS_SYNC_POINT (frame), TRUE, &drop);
 
   if (ret != GST_FLOW_OK) {
     gst_video_codec_frame_unref (frame);
@@ -3466,13 +3472,7 @@ gst_omx_video_dec_handle_frame (GstVideoDecoder * decoder,
       -1);
   gst_buffer_unref (buf);
 
-  if (self->subframe_input) {
-    if (self->current_frame)
-      gst_video_codec_frame_unref (self->current_frame);
-    self->current_frame = frame;
-  } else {
-    gst_video_codec_frame_unref (frame);
-  }
+  gst_video_codec_frame_unref (frame);
 
   GST_DEBUG_OBJECT (self, "Passed frame to component");
 
@@ -3763,9 +3763,6 @@ gst_omx_video_dec_parse (GstVideoDecoder * decoder, GstVideoCodecFrame * frame,
     return GST_FLOW_ERROR;
   }
 
-  GST_DEBUG_OBJECT (self, "Handling subframe (size=%" G_GSIZE_FORMAT ")",
-      gst_buffer_get_size (buf));
-
   /* Parser will only set PTS on the first subframe */
   if (!GST_BUFFER_PTS_IS_VALID (buf))
     GST_BUFFER_PTS (buf) = self->last_subframe_ts;
@@ -3773,32 +3770,46 @@ gst_omx_video_dec_parse (GstVideoDecoder * decoder, GstVideoCodecFrame * frame,
     self->last_subframe_ts = GST_BUFFER_PTS (buf);
 
   if (self->marker || is_new_frame (self, buf)) {
-    GST_DEBUG_OBJECT (self, "First subframe of a new frame");
-    gst_buffer_unref (buf);
-    gst_video_decoder_add_to_frame (decoder, s);
-    gst_video_decoder_have_frame (decoder);
-
-    if (self->current_frame &&
-        !GST_CLOCK_TIME_IS_VALID (self->current_frame->duration)) {
-      self->current_frame->duration = 0;
+    if (frame == self->current_frame) {
+      GST_DEBUG_OBJECT (self,
+          "First subframe of a new frame, finish parsing of the previous one");
+      g_clear_pointer (&self->current_frame, gst_video_codec_frame_unref);
+      gst_video_decoder_have_frame (decoder);
+      /* We are done with the previous frame, videodecoder resets its current frame.
+       * Returns now so gst_video_decoder_parse_available() will create a new
+       * internal current frame and then re-call parse() right away. */
+      gst_buffer_unref (buf);
+      return GST_FLOW_OK;
     }
-
-    self->marker = GST_BUFFER_FLAG_IS_SET (buf, GST_BUFFER_FLAG_MARKER);
-
-    return GST_FLOW_OK;
   }
+
+  if (!self->current_frame) {
+    GST_DEBUG_OBJECT (self, "start parsing frame %" GST_TIME_FORMAT,
+        GST_TIME_ARGS (GST_BUFFER_PTS (buf)));
+    self->current_frame = gst_video_codec_frame_ref (frame);
+
+    /* Create a dump input buffer which will be used to store the metadata */
+    frame->input_buffer = gst_buffer_new ();
+    gst_buffer_copy_into (frame->input_buffer, buf, GST_BUFFER_COPY_METADATA, 0,
+        -1);
+
+    frame->pts = GST_BUFFER_PTS (buf);
+    if (!GST_CLOCK_TIME_IS_VALID (frame->duration)) {
+      frame->duration = 0;
+    }
+  }
+
+  GST_DEBUG_OBJECT (self, "Handling subframe (size=%" G_GSIZE_FORMAT ")",
+      gst_buffer_get_size (buf));
 
   /* Remember if we met a marker */
   self->marker = GST_BUFFER_FLAG_IS_SET (buf, GST_BUFFER_FLAG_MARKER);
 
   /* Aggregate metas */
-  if (self->current_frame) {
-    gst_buffer_copy_into (self->current_frame->input_buffer, buf,
-        GST_BUFFER_COPY_META, 0, -1);
+  gst_buffer_copy_into (frame->input_buffer, buf, GST_BUFFER_COPY_META, 0, -1);
 
-    if (GST_CLOCK_TIME_IS_VALID (GST_BUFFER_DURATION (buf)))
-      self->current_frame->duration += GST_BUFFER_DURATION (buf);
-  }
+  if (GST_CLOCK_TIME_IS_VALID (GST_BUFFER_DURATION (buf)))
+    frame->duration += GST_BUFFER_DURATION (buf);
 
   gst_adapter_flush (adapter, s);
 
