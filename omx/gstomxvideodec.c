@@ -1981,7 +1981,8 @@ gst_omx_video_dec_loop (GstOMXVideoDec * self)
         gst_video_codec_frame_ref (self->current_frame));
   }
 
-  frame = gst_omx_video_find_nearest_frame (GST_ELEMENT_CAST (self), buf, frames);
+  frame =
+      gst_omx_video_find_nearest_frame (GST_ELEMENT_CAST (self), buf, frames);
 
   /* So we have a timestamped OMX buffer and get, or not, corresponding frame.
    * Assuming decoder output frames in display order, frames preceding this
