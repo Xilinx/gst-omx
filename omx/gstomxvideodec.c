@@ -3346,6 +3346,11 @@ gst_omx_video_dec_handle_input_buffer (GstOMXVideoDec * self,
     if (done) {
       if (end_of_frame)
         buf->omx_buf->nFlags |= OMX_BUFFERFLAG_ENDOFFRAME;
+#ifdef OMX_BUFFERFLAG_ENDOFSUBFRAME
+      /* flag introduced in OMX 1.2.0. Potentially set both flags as demonstrated
+       * in Figure 2-12 of the spec. */
+      buf->omx_buf->nFlags |= OMX_BUFFERFLAG_ENDOFSUBFRAME;
+#endif /* OMX_BUFFERFLAG_ENDOFSUBFRAME */
     }
 
     self->started = TRUE;
