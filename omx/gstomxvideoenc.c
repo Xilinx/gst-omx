@@ -586,7 +586,7 @@ gst_omx_video_enc_class_init (GstOMXVideoEncClass * klass)
   g_object_class_install_property (gobject_class, PROP_MAX_PICTURE_SIZE,
       g_param_spec_uint ("max-picture-size", "maximum picture size",
           "Maximum picture size in Kbits, encoded picture size (I, P, and B type) will be limited to max-picture-size value. "
-	  "If set it to 0 then max-picture-size will not have any effect",
+          "If set it to 0 then max-picture-size will not have any effect",
           0, G_MAXUINT, GST_OMX_VIDEO_ENC_MAX_PICTURE_SIZE_DEFAULT,
           G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS |
           GST_PARAM_MUTABLE_READY));
