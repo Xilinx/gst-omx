@@ -3800,9 +3800,6 @@ gst_omx_video_dec_parse (GstVideoDecoder * decoder, GstVideoCodecFrame * frame,
         -1);
 
     frame->pts = GST_BUFFER_PTS (buf);
-    if (!GST_CLOCK_TIME_IS_VALID (frame->duration)) {
-      frame->duration = 0;
-    }
   }
 
   GST_DEBUG_OBJECT (self, "Handling subframe (size=%" G_GSIZE_FORMAT ")",
@@ -3814,8 +3811,9 @@ gst_omx_video_dec_parse (GstVideoDecoder * decoder, GstVideoCodecFrame * frame,
   /* Aggregate metas */
   gst_buffer_copy_into (frame->input_buffer, buf, GST_BUFFER_COPY_META, 0, -1);
 
-  if (GST_CLOCK_TIME_IS_VALID (GST_BUFFER_DURATION (buf)))
-    frame->duration += GST_BUFFER_DURATION (buf);
+  if (!GST_CLOCK_TIME_IS_VALID (frame->duration) &&
+      GST_CLOCK_TIME_IS_VALID (GST_BUFFER_DURATION (buf)))
+    frame->duration = GST_BUFFER_DURATION (buf);
 
   gst_adapter_flush (adapter, s);
 
