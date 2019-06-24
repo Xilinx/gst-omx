@@ -3813,9 +3813,14 @@ gst_omx_video_dec_parse (GstVideoDecoder * decoder, GstVideoCodecFrame * frame,
   /* Aggregate metas */
   gst_buffer_copy_into (frame->input_buffer, buf, GST_BUFFER_COPY_META, 0, -1);
 
+  /* FIXME: parser currently set duration only on the first slice and 0 on the other ones.
+   * Ideally it should be CLOCK_TIME_NONE on those so we shouldn't have to check for > 0 */
   if (!GST_CLOCK_TIME_IS_VALID (frame->duration) &&
-      GST_CLOCK_TIME_IS_VALID (GST_BUFFER_DURATION (buf)))
+      GST_CLOCK_TIME_IS_VALID (GST_BUFFER_DURATION (buf)) &&
+      GST_BUFFER_DURATION (buf) > 0) {
     frame->duration = GST_BUFFER_DURATION (buf);
+    GST_BUFFER_DURATION (frame->input_buffer) = frame->duration;
+  }
 
   gst_adapter_flush (adapter, s);
 
