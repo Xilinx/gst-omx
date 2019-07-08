@@ -303,6 +303,7 @@ enum
   PROP_LOOK_AHEAD,
   PROP_SKIP_FRAME,
   PROP_MAX_PICTURE_SIZE,
+  PROP_MAX_PICTURE_SIZES,
 };
 
 /* FIXME: Better defaults */
@@ -335,6 +336,9 @@ enum
 #define GST_OMX_VIDEO_ENC_LOOK_AHEAD_DEFAULT (0)
 #define GST_OMX_VIDEO_ENC_SKIP_FRAME_DEFAULT (FALSE)
 #define GST_OMX_VIDEO_ENC_MAX_PICTURE_SIZE_DEFAULT (0)
+#define GST_OMX_VIDEO_ENC_MAX_PICTURE_SIZE_I_DEFAULT (0)
+#define GST_OMX_VIDEO_ENC_MAX_PICTURE_SIZE_P_DEFAULT (0)
+#define GST_OMX_VIDEO_ENC_MAX_PICTURE_SIZE_B_DEFAULT (0)
 
 /* ZYNQ_USCALE_PLUS encoder custom events */
 #define OMX_ALG_GST_EVENT_INSERT_LONGTERM "omx-alg/insert-longterm"
@@ -592,6 +596,15 @@ gst_omx_video_enc_class_init (GstOMXVideoEncClass * klass)
           G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS |
           GST_PARAM_MUTABLE_READY));
 
+  g_object_class_install_property (gobject_class, PROP_MAX_PICTURE_SIZES,
+      gst_param_spec_array ("max-picture-sizes", "Max picture size for I,P and B frames",
+          "Max picture sizes baed on frame types ('<I, P, B>') "
+          "Maximum picture size of I,P and B frames in Kbits, encoded picture size will be limited to max-picture-size-x value. "
+          "If set it to 0 then max-picture-size-x will not have any effect",
+          g_param_spec_int ("max-picture-size-x", "max picture size value",
+              "One of I, P, or B frame's max picture size value",
+	      0, G_MAXINT, 0, G_PARAM_WRITABLE | G_PARAM_STATIC_STRINGS),
+          G_PARAM_WRITABLE | G_PARAM_STATIC_STRINGS));
 #endif
 
   element_class->change_state =
@@ -656,6 +669,9 @@ gst_omx_video_enc_init (GstOMXVideoEnc * self)
   self->look_ahead = GST_OMX_VIDEO_ENC_LOOK_AHEAD_DEFAULT;
   self->skip_frame = GST_OMX_VIDEO_ENC_SKIP_FRAME_DEFAULT;
   self->max_picture_size = GST_OMX_VIDEO_ENC_MAX_PICTURE_SIZE_DEFAULT;
+  self->max_picture_size_i = GST_OMX_VIDEO_ENC_MAX_PICTURE_SIZE_I_DEFAULT;
+  self->max_picture_size_p = GST_OMX_VIDEO_ENC_MAX_PICTURE_SIZE_P_DEFAULT;
+  self->max_picture_size_b = GST_OMX_VIDEO_ENC_MAX_PICTURE_SIZE_B_DEFAULT;
 #endif
 
   self->default_target_bitrate = GST_OMX_PROP_OMX_DEFAULT;
@@ -1080,6 +1096,28 @@ set_zynqultrascaleplus_props (GstOMXVideoEnc * self)
     CHECK_ERR ("max-picture-size");
   }
 
+  if (self->max_picture_size_i != GST_OMX_VIDEO_ENC_MAX_PICTURE_SIZE_I_DEFAULT ||
+      self->max_picture_size_p != GST_OMX_VIDEO_ENC_MAX_PICTURE_SIZE_P_DEFAULT ||
+      self->max_picture_size_b != GST_OMX_VIDEO_ENC_MAX_PICTURE_SIZE_B_DEFAULT) {
+    OMX_ALG_VIDEO_PARAM_MAX_PICTURE_SIZES max_picture_sizes;
+
+    GST_OMX_INIT_STRUCT (&max_picture_sizes);
+    max_picture_sizes.nPortIndex = self->enc_out_port->index;
+    max_picture_sizes.nMaxPictureSizeI = self->max_picture_size_i;
+    max_picture_sizes.nMaxPictureSizeP = self->max_picture_size_p;
+    max_picture_sizes.nMaxPictureSizeB = self->max_picture_size_b;
+
+    GST_DEBUG_OBJECT (self,
+	"setting max_picture_size_i=%d, max_picture_size_p=%d, max_picture_size_b=%d",
+        self->max_picture_size_i, self->max_picture_size_p, self->max_picture_size_b);
+
+    err =
+        gst_omx_component_set_parameter (self->enc,
+        (OMX_INDEXTYPE) OMX_ALG_IndexParamVideoMaxPictureSizes,
+        &max_picture_sizes);
+    CHECK_ERR ("max-picture-sizes");
+  }
+
   return TRUE;
 }
 #endif
@@ -1329,6 +1367,7 @@ gst_omx_video_enc_set_property (GObject * object, guint prop_id,
     const GValue * value, GParamSpec * pspec)
 {
   GstOMXVideoEnc *self = GST_OMX_VIDEO_ENC (object);
+  GValue *v;
 
   switch (prop_id) {
     case PROP_CONTROL_RATE:
@@ -1437,6 +1476,34 @@ gst_omx_video_enc_set_property (GObject * object, guint prop_id,
       break;
     case PROP_MAX_PICTURE_SIZE:
       self->max_picture_size = g_value_get_uint (value);
+      break;
+    case PROP_MAX_PICTURE_SIZES:
+      if (gst_value_array_get_size (value) != 3) {
+        GST_ERROR_OBJECT (self, "Badly formated max-picture-sizes, must contains 3 gint");
+	break;
+      }
+
+      v = gst_value_array_get_value (value, 0);
+      if (!G_VALUE_HOLDS_INT (v)) {
+        GST_ERROR_OBJECT (self, "max-picture-sizes for I frame is not int");
+	break;
+      }
+      self->max_picture_size_i = g_value_get_int (v);
+
+      v = gst_value_array_get_value (value, 1);
+      if (!G_VALUE_HOLDS_INT (v)) {
+        GST_ERROR_OBJECT (self, "max-picture-sizes for P frame is not int");
+	break;
+      }
+      self->max_picture_size_p = g_value_get_int (v);
+
+      v = gst_value_array_get_value (value, 2);
+      if (!G_VALUE_HOLDS_INT (v)) {
+        GST_ERROR_OBJECT (self, "max-picture-sizes for B frame is not int");
+	break;
+      }
+      self->max_picture_size_b = g_value_get_int (v);
+
       break;
 #endif
     default:
