@@ -1975,6 +1975,12 @@ omx_index_type_to_str (OMX_INDEXTYPE index)
       return "OMX_ALG_IndexParamVideoInputParsed";
     case OMX_ALG_IndexParamVideoMaxPictureSize:
       return "OMX_ALG_IndexParamVideoMaxPictureSize";
+    case OMX_ALG_IndexParamVideoMaxPictureSizes:
+      return "OMX_ALG_IndexParamVideoMaxPictureSizes";
+    case OMX_ALG_IndexConfigVideoLoopFilterBeta:
+      return "OMX_ALG_IndexConfigVideoLoopFilterBeta";
+    case OMX_ALG_IndexConfigVideoLoopFilterTc:
+      return "OMX_ALG_IndexConfigVideoLoopFilterTc";
     case OMX_ALG_IndexMaxEnum:
       return "OMX_ALG_IndexMaxEnum";
   }
