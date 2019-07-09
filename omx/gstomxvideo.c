@@ -263,3 +263,52 @@ gst_omx_video_is_equal_framerate_q16 (OMX_U32 q16_a, OMX_U32 q16_b)
    * an unnecessary re-negotiation. */
   return fabs (((gdouble) q16_a) - ((gdouble) q16_b)) / (gdouble) q16_b < 0.01;
 }
+
+gboolean
+gst_omx_video_get_port_padding (GstOMXPort * port, GstVideoInfo * info_orig,
+    GstVideoAlignment * alig)
+{
+  guint nstride;
+  guint nslice;
+  GstVideoInfo info;
+  gsize plane_size[GST_VIDEO_MAX_PLANES];
+
+  gst_video_alignment_reset (alig);
+
+  /* Create a copy of @info_orig without any offset/stride as we need a
+   * 'standard' version to compute the paddings. */
+  gst_video_info_init (&info);
+  gst_video_info_set_format (&info, GST_VIDEO_INFO_FORMAT (info_orig),
+      GST_VIDEO_INFO_WIDTH (info_orig), GST_VIDEO_INFO_HEIGHT (info_orig));
+
+  /* Retrieve the plane sizes */
+  if (!gst_video_info_align_full (&info, alig, plane_size)) {
+    GST_WARNING_OBJECT (port->comp->parent, "Failed to retrieve plane sizes");
+    return FALSE;
+  }
+
+  nstride = port->port_def.format.video.nStride;
+  nslice = port->port_def.format.video.nSliceHeight;
+
+  if (nstride > GST_VIDEO_INFO_PLANE_STRIDE (&info, 0)) {
+    alig->padding_right = nstride - GST_VIDEO_INFO_PLANE_STRIDE (&info, 0);
+
+    GST_LOG_OBJECT (port->comp->parent,
+        "OMX stride (%d) is higher than standard (%d) for port %u; right padding: %d",
+        nstride, GST_VIDEO_INFO_PLANE_STRIDE (&info, 0), port->index,
+        alig->padding_right);
+  }
+
+  if (nslice > GST_VIDEO_INFO_PLANE_HEIGHT (&info, 0, plane_size)) {
+    alig->padding_bottom =
+        nslice - GST_VIDEO_INFO_PLANE_HEIGHT (&info, 0, plane_size);
+
+    GST_LOG_OBJECT (port->comp->parent,
+        "OMX slice height (%d) is higher than standard (%" G_GSIZE_FORMAT
+        ") for port %u; vertical padding: %d", nslice,
+        GST_VIDEO_INFO_PLANE_HEIGHT (&info, 0, plane_size), port->index,
+        alig->padding_bottom);
+  }
+
+  return TRUE;
+}

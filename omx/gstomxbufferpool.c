@@ -29,6 +29,8 @@
 
 #include <gst/allocators/gstdmabuf.h>
 
+#include "gstomxvideo.h"
+
 GST_DEBUG_CATEGORY_STATIC (gst_omx_buffer_pool_debug_category);
 #define GST_CAT_DEFAULT gst_omx_buffer_pool_debug_category
 
@@ -407,11 +409,17 @@ gst_omx_buffer_pool_alloc_buffer (GstBufferPool * bpool,
       /* We always add the videometa. It's the job of the user
        * to copy the buffer if pool->need_copy is TRUE
        */
-      gst_buffer_add_video_meta_full (buf, GST_VIDEO_FRAME_FLAG_NONE,
+      GstVideoMeta *meta;
+      GstVideoAlignment alig;
+
+      meta = gst_buffer_add_video_meta_full (buf, GST_VIDEO_FRAME_FLAG_NONE,
           GST_VIDEO_INFO_FORMAT (&pool->video_info),
           GST_VIDEO_INFO_WIDTH (&pool->video_info),
           GST_VIDEO_INFO_HEIGHT (&pool->video_info),
           GST_VIDEO_INFO_N_PLANES (&pool->video_info), offset, stride);
+
+      if (gst_omx_video_get_port_padding (pool->port, &pool->video_info, &alig))
+        gst_video_meta_set_alignment (meta, alig);
     }
   }
 
