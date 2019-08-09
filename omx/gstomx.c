@@ -1981,6 +1981,10 @@ omx_index_type_to_str (OMX_INDEXTYPE index)
       return "OMX_ALG_IndexConfigVideoLoopFilterBeta";
     case OMX_ALG_IndexConfigVideoLoopFilterTc:
       return "OMX_ALG_IndexConfigVideoLoopFilterTc";
+    case OMX_ALG_IndexParamVideoLoopFilterBeta:
+      return "OMX_ALG_IndexParamVideoLoopFilterBeta";
+    case OMX_ALG_IndexParamVideoLoopFilterTc:
+      return "OMX_ALG_IndexParamVideoLoopFilterTc";
     case OMX_ALG_IndexMaxEnum:
       return "OMX_ALG_IndexMaxEnum";
   }
