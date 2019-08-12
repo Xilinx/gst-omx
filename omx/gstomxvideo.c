@@ -293,6 +293,18 @@ gst_omx_video_get_port_padding (GstOMXPort * port, GstVideoInfo * info_orig,
   if (nstride > GST_VIDEO_INFO_PLANE_STRIDE (&info, 0)) {
     alig->padding_right = nstride - GST_VIDEO_INFO_PLANE_STRIDE (&info, 0);
 
+    switch (GST_VIDEO_INFO_FORMAT (&info)) {
+      case GST_VIDEO_FORMAT_NV12_10LE32:
+      case GST_VIDEO_FORMAT_NV16_10LE32:
+        alig->padding_right *= 0.75;
+        break;
+      default:
+        /* FIXME: we may need a generic API for this,
+         * see https://gitlab.freedesktop.org/gstreamer/gst-plugins-base/merge_requests/266#note_207079
+         */
+        break;
+    }
+
     GST_LOG_OBJECT (port->comp->parent,
         "OMX stride (%d) is higher than standard (%d) for port %u; right padding: %d",
         nstride, GST_VIDEO_INFO_PLANE_STRIDE (&info, 0), port->index,
