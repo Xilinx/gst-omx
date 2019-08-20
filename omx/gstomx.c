@@ -1985,6 +1985,18 @@ omx_index_type_to_str (OMX_INDEXTYPE index)
       return "OMX_ALG_IndexParamVideoLoopFilterBeta";
     case OMX_ALG_IndexParamVideoLoopFilterTc:
       return "OMX_ALG_IndexParamVideoLoopFilterTc";
+    case OMX_ALG_IndexParamSyncIp:
+      return "OMX_ALG_IndexParamSyncIp";
+    case OMX_ALG_IndexParamVideoTransferCharacteristics:
+      return "OMX_ALG_IndexParamVideoTransferCharacteristics";
+    case OMX_ALG_IndexParamVideoColorMatrix:
+      return "OMX_ALG_IndexParamVideoColorMatrix";
+    case OMX_ALG_IndexConfigVideoTransferCharacteristics:
+      return "OMX_ALG_IndexConfigVideoTransferCharacteristics";
+    case OMX_ALG_IndexConfigVideoColorMatrix:
+      return "OMX_ALG_IndexConfigVideoColorMatrix";
+    case OMX_ALG_IndexConfigVideoHighDynamicRangeSEIs:
+      return "OMX_ALG_IndexConfigVideoHighDynamicRangeSEIs";
     case OMX_ALG_IndexMaxEnum:
       return "OMX_ALG_IndexMaxEnum";
   }
