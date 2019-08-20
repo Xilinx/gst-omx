@@ -94,11 +94,13 @@ enum
   PROP_INTERNAL_ENTROPY_BUFFERS,
   PROP_LOW_LATENCY,
   PROP_LATENCY_MODE,
+  PROP_SPLIT_INPUT,
 };
 
 #define GST_OMX_VIDEO_DEC_INTERNAL_ENTROPY_BUFFERS_DEFAULT (5)
 #define GST_OMX_VIDEO_DEC_LOW_LATENCY_DEFAULT              (FALSE)
 #define GST_OMX_VIDEO_DEC_LATENCY_MODE_DEFAULT          (0xffffffff)
+#define GST_OMX_VIDEO_DEC_SPLIT_INPUT_DEFAULT              (FALSE)
 
 #ifdef USE_OMX_TARGET_ZYNQ_USCALE_PLUS
 #define LATENCY_MODE_LOW_DEPRECATION_MESSAGE \
@@ -169,6 +171,9 @@ gst_omx_video_dec_set_property (GObject * object, guint prop_id,
           LATENCY_MODE_DEPRECATION_MESSAGE);
       self->low_latency = g_value_get_enum (value) != LATENCY_MODE_NORMAL;
       break;
+    case PROP_SPLIT_INPUT:
+      self->split_input = g_value_get_boolean (value);
+      break;
 #endif
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
@@ -194,6 +199,9 @@ gst_omx_video_dec_get_property (GObject * object, guint prop_id,
       break;
     case PROP_LATENCY_MODE:
       g_value_set_enum (value, self->low_latency);
+      break;
+    case PROP_SPLIT_INPUT:
+      g_value_set_boolean (value, self->split_input);
       break;
 #endif
     default:
@@ -239,6 +247,13 @@ gst_omx_video_dec_class_init (GstOMXVideoDecClass * klass)
           "DEPRECATED: " LATENCY_MODE_DEPRECATION_MESSAGE,
           GST_TYPE_OMX_VIDEO_DEC_LATENCY_MODE,
           GST_OMX_VIDEO_DEC_LATENCY_MODE_DEFAULT,
+          G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
+
+  g_object_class_install_property (gobject_class, PROP_SPLIT_INPUT,
+      g_param_spec_boolean ("split-input", "split input mode",
+          "When enabled, decoder will have 1-to-1 mapping for input and output buffers. "
+          "When disabled, decoder will copy all input buffers to internal circular buffer and process them.",
+          GST_OMX_VIDEO_DEC_SPLIT_INPUT_DEFAULT,
           G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
 #endif
 
@@ -289,6 +304,7 @@ gst_omx_video_dec_init (GstOMXVideoDec * self)
   self->internal_entropy_buffers =
       GST_OMX_VIDEO_DEC_INTERNAL_ENTROPY_BUFFERS_DEFAULT;
   self->low_latency = GST_OMX_VIDEO_DEC_LOW_LATENCY_DEFAULT;
+  self->split_input = GST_OMX_VIDEO_DEC_SPLIT_INPUT_DEFAULT;
 #endif
 
   gst_video_decoder_set_packetized (GST_VIDEO_DECODER (self), TRUE);
@@ -353,6 +369,20 @@ set_zynqultrascaleplus_props (GstOMXVideoDec * self)
         (OMX_INDEXTYPE) OMX_ALG_IndexParamVideoDecodedPictureBuffer,
         &picture_buffer);
     CHECK_ERR ("decodec picture buffer");
+  }
+  {
+    OMX_ALG_VIDEO_PARAM_INPUT_PARSED split_input;
+
+    GST_OMX_INIT_STRUCT (&split_input);
+    split_input.nPortIndex = self->dec_in_port->index;
+    split_input.bDisableInputParsed = !self->split_input;
+
+    GST_DEBUG_OBJECT (self, "setting split input to %d", self->split_input);
+
+    err =
+        gst_omx_component_set_parameter (self->dec,
+        (OMX_INDEXTYPE) OMX_ALG_IndexParamVideoInputParsed, &split_input);
+    CHECK_ERR ("split input mode");
   }
 
   return TRUE;
