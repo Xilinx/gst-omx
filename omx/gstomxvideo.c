@@ -272,13 +272,16 @@ gst_omx_video_get_port_padding (GstOMXPort * port, GstVideoInfo * info_orig,
   guint nslice;
   GstVideoInfo info;
   gsize plane_size[GST_VIDEO_MAX_PLANES];
+  guint height;
 
   gst_video_alignment_reset (alig);
 
   /* Create a copy of @info_orig without any offset/stride as we need a
    * 'standard' version to compute the paddings. */
   gst_video_info_init (&info);
-  gst_video_info_set_format (&info, GST_VIDEO_INFO_FORMAT (info_orig),
+  gst_video_info_set_interlaced_format (&info,
+      GST_VIDEO_INFO_FORMAT (info_orig),
+      GST_VIDEO_INFO_INTERLACE_MODE (info_orig),
       GST_VIDEO_INFO_WIDTH (info_orig), GST_VIDEO_INFO_HEIGHT (info_orig));
 
   /* Retrieve the plane sizes */
@@ -311,15 +314,28 @@ gst_omx_video_get_port_padding (GstOMXPort * port, GstVideoInfo * info_orig,
         alig->padding_right);
   }
 
-  if (nslice > GST_VIDEO_INFO_PLANE_HEIGHT (&info, 0, plane_size)) {
-    alig->padding_bottom =
-        nslice - GST_VIDEO_INFO_PLANE_HEIGHT (&info, 0, plane_size);
+  height = GST_VIDEO_INFO_PLANE_HEIGHT (&info, 0, plane_size);
+
+  /* FIXME: clarify the semantic of GST_VIDEO_INFO_PLANE_HEIGHT() in interlace mode */
+  if (GST_VIDEO_INFO_INTERLACE_MODE (&info) ==
+      GST_VIDEO_INTERLACE_MODE_ALTERNATE)
+    height /= 2;
+
+  if (nslice > height) {
+    alig->padding_bottom = nslice - height;
+
+    /* FIXME: clarify the semantic of vertical alignment. Is it for the full frame or for field? */
+    if (GST_VIDEO_INFO_INTERLACE_MODE (&info) ==
+        GST_VIDEO_INTERLACE_MODE_ALTERNATE) {
+      GST_DEBUG_OBJECT (port->comp->parent,
+          "Double bottom padding because of alternate stream");
+      alig->padding_bottom *= 2;
+    }
 
     GST_LOG_OBJECT (port->comp->parent,
-        "OMX slice height (%d) is higher than standard (%" G_GSIZE_FORMAT
-        ") for port %u; vertical padding: %d", nslice,
-        GST_VIDEO_INFO_PLANE_HEIGHT (&info, 0, plane_size), port->index,
-        alig->padding_bottom);
+        "OMX slice height (%d) is higher than standard (%d)"
+        " for port %u; vertical padding: %d", nslice,
+        height, port->index, alig->padding_bottom);
   }
 
   return TRUE;
