@@ -1838,7 +1838,6 @@ gst_omx_video_enc_handle_output_frame (GstOMXVideoEnc * self, GstOMXPort * port,
         flow_ret =
             gst_video_encoder_finish_frame (GST_VIDEO_ENCODER (self), frame);
       } else {
-        GST_BUFFER_FLAG_SET (outbuf, GST_OMX_BUFFER_FLAG_SUBFRAME);
         flow_ret =
             gst_video_encoder_finish_slice (GST_VIDEO_ENCODER (self), frame,
             outbuf);
