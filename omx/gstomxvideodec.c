@@ -3070,33 +3070,6 @@ gst_omx_video_dec_set_format (GstVideoDecoder * decoder,
 
 #ifdef USE_OMX_TARGET_ZYNQ_USCALE_PLUS
   gst_omx_video_dec_set_latency (self);
-
-  {
-    GstCapsFeatures *features;
-
-    features = gst_caps_get_features (state->caps, 0);
-    if (features
-        && gst_caps_features_contains (features,
-            GST_CAPS_FEATURE_MEMORY_XLNX_LL)) {
-      OMX_ALG_PARAM_SYNC_IP param;
-      OMX_ERRORTYPE err;
-
-      GST_OMX_INIT_STRUCT (&param);
-      param.bEnableSyncIp = OMX_TRUE;
-
-      GST_DEBUG_OBJECT (self, "Input is using XLNX-LowLatency");
-
-      err =
-          gst_omx_component_set_parameter (self->dec,
-          (OMX_INDEXTYPE) OMX_ALG_IndexParamSyncIp, &param);
-      if (err != OMX_ErrorNone) {
-        GST_ERROR_OBJECT (self,
-            "Failed to set  parameter: %s (0x%08x)",
-            gst_omx_error_to_string (err), err);
-        return FALSE;
-      }
-    }
-  }
 #endif
 
   self->downstream_flow_ret = GST_FLOW_OK;
