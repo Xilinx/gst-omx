@@ -103,6 +103,9 @@ struct _GstOMXVideoDec
   guint nb_upstream_buffers;
   gboolean subframe_input;
 
+  /* TRUE if decoder is producing buffers using XLNX-LL */
+  gboolean xlnx_ll;
+
   /* properties */
 #ifdef USE_OMX_TARGET_ZYNQ_USCALE_PLUS
   guint32 internal_entropy_buffers;
