@@ -1,7 +1,6 @@
 # name of the binary
-if USE_OMX_TARGET_ZYNQ_USCALE_PLUS
-bin_PROGRAMS = zynqmp_vcu_encode
-endif
+bin_PROGRAMS = zynqmp_vcu_encode \
+  zynqmp_sei_extraction
 
 # list of source files
 zynqmp_vcu_encode_SOURCES = test-vcu-encode.c
