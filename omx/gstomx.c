@@ -1984,8 +1984,8 @@ omx_index_type_to_str (OMX_INDEXTYPE index)
       return "OMX_ALG_IndexParamVideoLoopFilterBeta";
     case OMX_ALG_IndexParamVideoLoopFilterTc:
       return "OMX_ALG_IndexParamVideoLoopFilterTc";
-    case OMX_ALG_IndexParamSyncIp:
-      return "OMX_ALG_IndexParamSyncIp";
+    case OMX_ALG_IndexPortParamEarlyCallback:
+      return "OMX_ALG_IndexPortParamEarlyCallback";
     case OMX_ALG_IndexParamVideoTransferCharacteristics:
       return "OMX_ALG_IndexParamVideoTransferCharacteristics";
     case OMX_ALG_IndexParamVideoColorMatrix:
