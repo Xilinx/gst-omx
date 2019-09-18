@@ -2729,6 +2729,63 @@ gst_omx_video_enc_framerate_changed (GstOMXVideoEnc * self,
 }
 
 #ifdef USE_OMX_TARGET_ZYNQ_USCALE_PLUS
+/* returns TRUE if only the resolution changed and that resolution could be
+ * updated using OMX_ALG_VIDEO_CONFIG_NOTIFY_RESOLUTION_CHANGE */
+static gboolean
+gst_omx_video_enc_resolution_changed (GstOMXVideoEnc * self,
+    GstVideoCodecState * state)
+{
+  GstVideoInfo *info = &state->info;
+  OMX_ALG_VIDEO_CONFIG_NOTIFY_RESOLUTION_CHANGE config;
+  OMX_ERRORTYPE err;
+
+  if (self->input_state->info.finfo->format != info->finfo->format) {
+    GST_LOG_OBJECT (self, "Video format changed, can't do seamless transition");
+    return FALSE;
+  }
+
+  if (!gst_omx_video_port_support_resolution (self->enc_in_port,
+          info->width, info->height)) {
+    GST_DEBUG_OBJECT (self,
+        "Input port does not support new resolution (%dx%d), can't do seamless transition",
+        info->width, info->height);
+    return FALSE;
+  }
+
+  GST_DEBUG_OBJECT (self,
+      "Resolution change detected (%dx%d -> %dx%d) do seameless transition",
+      self->input_state->info.width, self->input_state->info.height,
+      info->width, info->height);
+
+  GST_OMX_INIT_STRUCT (&config);
+  config.nPortIndex = self->enc_in_port->index;
+
+  config.nWidth = info->width;
+  config.nHeight = GST_VIDEO_INFO_FIELD_HEIGHT (info);
+
+  err = gst_omx_component_set_config (self->enc,
+      OMX_ALG_IndexConfigVideoNotifyResolutionChange, &config);
+  if (err == OMX_ErrorNone) {
+    OMX_PARAM_PORTDEFINITIONTYPE port_def;
+
+    gst_video_codec_state_unref (self->input_state);
+    self->input_state = gst_video_codec_state_ref (state);
+
+    /* Port has been updated with the new resolution so update it */
+    gst_omx_port_update_port_definition (self->enc_in_port, NULL);
+    gst_omx_port_get_port_definition (self->enc_in_port, &port_def);
+  } else {
+    GST_WARNING_OBJECT (self,
+        "Failed to set resolution configuration: %s (0x%08x)",
+        gst_omx_error_to_string (err), err);
+    /* if changing the resolution dynamically didn't work, keep going with a full
+     * encoder reset */
+    return FALSE;
+  }
+
+  return TRUE;
+}
+
 static gboolean
 gst_omx_video_enc_set_interlacing_parameters (GstOMXVideoEnc * self,
     GstVideoInfo * info)
@@ -2826,6 +2883,13 @@ gst_omx_video_enc_set_format (GstVideoEncoder * encoder,
 
     if (gst_omx_video_enc_framerate_changed (self, state))
       return TRUE;
+
+#ifdef USE_OMX_TARGET_ZYNQ_USCALE_PLUS
+    if (gst_omx_video_enc_resolution_changed (self, state))
+      return TRUE;
+#endif
+
+    GST_DEBUG_OBJECT (self, "Need to disable input port to reconfigure it");
 
     if (!gst_omx_video_enc_disable (self))
       return FALSE;
