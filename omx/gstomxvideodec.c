@@ -1916,6 +1916,41 @@ set_decoder_out_time (GstOMXVideoDec * self, GstBuffer * buffer)
 
   gst_object_unref (clock);
 }
+
+static gboolean
+zynq_seamless_output_transition (GstOMXVideoDec * self, GstOMXPort * port)
+{
+  /* Zynq decoder is able to handle dynamic resolution change if only the
+   * resolution changed and the initial resolution, which has been used to
+   * calculate the buffer size, is higher or equal to the new one. */
+  OMX_PARAM_PORTDEFINITIONTYPE port_def;
+  OMX_VIDEO_PORTDEFINITIONTYPE old, new;
+
+  old = port->old_port_def.format.video;
+  gst_omx_port_get_port_definition (port, &port_def);
+  new = port_def.format.video;
+
+  if (old.eColorFormat != new.eColorFormat) {
+    GST_DEBUG_OBJECT (self,
+        "video format changed (%d -> %d); can't do seamless transition",
+        old.eColorFormat, new.eColorFormat);
+    return FALSE;
+  }
+
+  if (!gst_omx_video_port_support_resolution (port,
+          new.nFrameWidth, new.nFrameHeight)) {
+    GST_DEBUG_OBJECT (self,
+        "Input port does not support new resolution (%dx%d), can't do seamless transition",
+        new.nFrameWidth, new.nFrameHeight);
+    return FALSE;
+  }
+
+  /* No need to check xFramerate, it doesn't affect the buffer size */
+
+  GST_DEBUG_OBJECT (self,
+      "only the output resolution changed; use seamless transition");
+  return TRUE;
+}
 #endif
 
 static void
@@ -1958,6 +1993,16 @@ gst_omx_video_dec_loop (GstOMXVideoDec * self)
       if (gst_omx_port_is_enabled (port))
         disable_port = TRUE;
     }
+
+#ifdef USE_OMX_TARGET_ZYNQ_USCALE_PLUS
+    if (reconfigure_port && disable_port
+        && zynq_seamless_output_transition (self, port)) {
+      disable_port = FALSE;
+      reconfigure_port = FALSE;
+
+      gst_omx_port_mark_reconfigured (port);
+    }
+#endif
 
     /* Reallocate all buffers */
     if (disable_port) {
