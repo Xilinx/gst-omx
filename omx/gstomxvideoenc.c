@@ -1910,6 +1910,30 @@ gst_omx_video_enc_pause_loop (GstOMXVideoEnc * self, GstFlowReturn flow_ret)
   g_mutex_unlock (&self->drain_lock);
 }
 
+static gboolean
+zynq_seamless_output_transition (GstOMXVideoEnc * self, GstOMXPort * port)
+{
+  OMX_PARAM_PORTDEFINITIONTYPE port_def;
+  OMX_VIDEO_PORTDEFINITIONTYPE new;
+
+  gst_omx_port_get_port_definition (port, &port_def);
+  new = port_def.format.video;
+
+  if (!gst_omx_video_port_support_resolution (port,
+          new.nFrameWidth, new.nFrameHeight)) {
+    GST_DEBUG_OBJECT (self,
+        "Input port does not support new resolution (%dx%d), can't do seamless transition",
+        new.nFrameWidth, new.nFrameHeight);
+    return FALSE;
+  }
+
+  /* No need to check xFramerate, it doesn't affect the buffer size */
+
+  GST_DEBUG_OBJECT (self,
+      "only the output resolution changed; use seamless transition");
+  return TRUE;
+}
+
 static void
 gst_omx_video_enc_loop (GstOMXVideoEnc * self)
 {
@@ -1936,11 +1960,26 @@ gst_omx_video_enc_loop (GstOMXVideoEnc * self)
       || acq_return == GST_OMX_ACQUIRE_BUFFER_RECONFIGURE) {
     GstCaps *caps;
     GstVideoCodecState *state;
+    gboolean disable_port = FALSE, reconfigure_port = FALSE;
 
     GST_DEBUG_OBJECT (self, "Port settings have changed, updating caps");
 
-    if (acq_return == GST_OMX_ACQUIRE_BUFFER_RECONFIGURE
-        && gst_omx_port_is_enabled (port)) {
+    if (acq_return == GST_OMX_ACQUIRE_BUFFER_RECONFIGURE) {
+      reconfigure_port = TRUE;
+      if (gst_omx_port_is_enabled (port))
+        disable_port = TRUE;
+    }
+#ifdef USE_OMX_TARGET_ZYNQ_USCALE_PLUS
+    if (reconfigure_port && disable_port
+        && zynq_seamless_output_transition (self, port)) {
+      disable_port = FALSE;
+      reconfigure_port = FALSE;
+
+      gst_omx_port_mark_reconfigured (port);
+    }
+#endif
+
+    if (disable_port) {
       /* Reallocate all buffers */
       err = gst_omx_port_set_enabled (port, FALSE);
       if (err != OMX_ErrorNone)
@@ -1985,7 +2024,7 @@ gst_omx_video_enc_loop (GstOMXVideoEnc * self)
 
     GST_VIDEO_ENCODER_STREAM_UNLOCK (self);
 
-    if (acq_return == GST_OMX_ACQUIRE_BUFFER_RECONFIGURE) {
+    if (reconfigure_port) {
       if (!gst_omx_video_enc_ensure_nb_out_buffers (self))
         goto reconfigure_error;
 
