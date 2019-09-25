@@ -336,7 +336,7 @@ xlnx_ll_supported (gboolean encoder)
   if (encoder)
     return g_file_test (SYNC_IP_DEV_ENCODER, G_FILE_TEST_EXISTS);
   else
-    return TRUE; /* Not using decoder syncip currently */
+    return TRUE;                /* Not using decoder syncip currently */
 }
 
 GstCaps *
