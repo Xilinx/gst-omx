@@ -3206,13 +3206,6 @@ gst_omx_video_enc_fill_buffer (GstOMXVideoEnc * self, GstBuffer * inbuf,
   OMX_PARAM_PORTDEFINITIONTYPE *port_def = &self->enc_in_port->port_def;
   gboolean ret = FALSE;
   GstVideoFrame frame;
-  gint field_height = GST_VIDEO_INFO_FIELD_HEIGHT (info);
-
-  if (info->width != port_def->format.video.nFrameWidth ||
-      field_height != port_def->format.video.nFrameHeight) {
-    GST_ERROR_OBJECT (self, "Width or height do not match");
-    goto done;
-  }
 
   if (self->enc_in_port->allocation ==
       GST_OMX_BUFFER_ALLOCATION_USE_BUFFER_DYNAMIC) {
