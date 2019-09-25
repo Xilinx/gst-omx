@@ -3205,11 +3205,15 @@ gst_omx_video_enc_fill_buffer (GstOMXVideoEnc * self, GstBuffer * inbuf,
   GstVideoFrame frame;
   gint field_height = GST_VIDEO_INFO_FIELD_HEIGHT (info);
 
+#ifndef USE_OMX_TARGET_ZYNQ_USCALE_PLUS
+  //HACK: Seen that the change of resolution in OMX stack is async
+  //we might receive buffers which are still having the previous resolution
   if (info->width != port_def->format.video.nFrameWidth ||
       field_height != port_def->format.video.nFrameHeight) {
     GST_ERROR_OBJECT (self, "Width or height do not match");
     goto done;
   }
+#endif
 
   if (self->enc_in_port->allocation ==
       GST_OMX_BUFFER_ALLOCATION_USE_BUFFER_DYNAMIC) {
