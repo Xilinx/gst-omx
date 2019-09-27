@@ -1999,6 +1999,8 @@ omx_index_type_to_str (OMX_INDEXTYPE index)
       return "OMX_ALG_IndexConfigVideoHighDynamicRangeSEIs";
     case OMX_ALG_IndexConfigVideoMaxResolutionChange:
       return "OMX_ALG_IndexConfigVideoMaxResolutionChange";
+    case OMX_ALG_IndexParamVideoQuantizationTable:
+      return "OMX_ALG_IndexParamVideoQuantizationTable";
     case OMX_ALG_IndexMaxEnum:
       return "OMX_ALG_IndexMaxEnum";
   }
