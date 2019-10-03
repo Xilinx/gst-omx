@@ -2811,6 +2811,7 @@ static gboolean
 gst_omx_video_dec_ensure_nb_in_buffers (GstOMXVideoDec * self)
 {
   GstOMXVideoDecClass *klass = GST_OMX_VIDEO_DEC_GET_CLASS (self);
+  guint extra = 0;
 
   if (self->input_allocation == GST_OMX_BUFFER_ALLOCATION_USE_BUFFER_DYNAMIC &&
       self->nb_upstream_buffers > self->dec_in_port->port_def.nBufferCountMin) {
@@ -2822,7 +2823,11 @@ gst_omx_video_dec_ensure_nb_in_buffers (GstOMXVideoDec * self)
             self->nb_upstream_buffers))
       return FALSE;
   } else if ((klass->cdata.hacks & GST_OMX_HACK_ENSURE_BUFFER_COUNT_ACTUAL)) {
-    if (!gst_omx_port_ensure_buffer_count_actual (self->dec_in_port, 0))
+#ifdef USE_OMX_TARGET_ZYNQ_USCALE_PLUS
+    if (g_getenv ("DEC_EXTRA_IP_BUFFERS") != NULL)
+      extra = atoi (g_getenv ("DEC_EXTRA_IP_BUFFERS"));
+#endif
+    if (!gst_omx_port_ensure_buffer_count_actual (self->dec_in_port, extra))
       return FALSE;
   }
 
