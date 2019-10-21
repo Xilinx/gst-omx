@@ -1983,7 +1983,7 @@ zynq_seamless_output_transition (GstOMXVideoEnc * self, GstOMXPort * port)
   if (!gst_omx_video_port_support_resolution (port,
           new.nFrameWidth, new.nFrameHeight)) {
     GST_DEBUG_OBJECT (self,
-        "Input port does not support new resolution (%dx%d), can't do seamless transition",
+        "Output port does not support new resolution (%dx%d), can't do seamless transition",
         new.nFrameWidth, new.nFrameHeight);
     return FALSE;
   }
