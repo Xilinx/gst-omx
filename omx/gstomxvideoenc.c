@@ -3518,8 +3518,9 @@ gst_omx_video_enc_fill_buffer (GstOMXVideoEnc * self, GstBuffer * inbuf,
   }
 
   /* Same strides and everything */
-  if (gst_buffer_get_size (inbuf) ==
-      outbuf->omx_buf->nAllocLen - outbuf->omx_buf->nOffset) {
+  if ((gst_buffer_get_size (inbuf) ==
+          outbuf->omx_buf->nAllocLen - outbuf->omx_buf->nOffset) &&
+      (stride == port_def->format.video.nStride)) {
     outbuf->omx_buf->nFilledLen = gst_buffer_get_size (inbuf);
 
     GST_LOG_OBJECT (self, "Matched strides - direct copy %u bytes",
