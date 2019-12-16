@@ -2402,7 +2402,7 @@ retry:
     ret = GST_OMX_ACQUIRE_BUFFER_RECONFIGURE;
     goto done;
   }
-
+#ifdef USE_OMX_TARGET_ZYNQ_USCALE_PLUS
   if (port->resolution_changed) {
     GST_DEBUG_OBJECT (comp->parent, "Component %s port %d resolution changed",
         comp->name, port->index);
@@ -2410,6 +2410,7 @@ retry:
     port->resolution_changed = FALSE;
     goto done;
   }
+#endif
 
   if (port->port_def.eDir == OMX_DirOutput && port->eos) {
     if (!g_queue_is_empty (&port->pending_buffers)) {
