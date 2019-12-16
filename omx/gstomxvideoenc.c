@@ -3281,9 +3281,9 @@ gst_omx_video_enc_fill_buffer (GstOMXVideoEnc * self, GstBuffer * inbuf,
   OMX_PARAM_PORTDEFINITIONTYPE *port_def = &self->enc_in_port->port_def;
   gboolean ret = FALSE;
   GstVideoFrame frame;
+#ifndef USE_OMX_TARGET_ZYNQ_USCALE_PLUS
   gint field_height = GST_VIDEO_INFO_FIELD_HEIGHT (info);
 
-#ifndef USE_OMX_TARGET_ZYNQ_USCALE_PLUS
   //HACK: Seen that the change of resolution in OMX stack is async
   //we might receive buffers which are still having the previous resolution
   if (info->width != port_def->format.video.nFrameWidth ||
