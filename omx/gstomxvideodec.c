@@ -46,6 +46,7 @@
 #pragma GCC diagnostic pop
 #endif
 
+#include <stdlib.h>
 #include <string.h>
 
 #include "gstomxbufferpool.h"
