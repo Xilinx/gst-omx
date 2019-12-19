@@ -1998,6 +1998,7 @@ gst_omx_video_enc_pause_loop (GstOMXVideoEnc * self, GstFlowReturn flow_ret)
   g_mutex_unlock (&self->drain_lock);
 }
 
+#ifdef USE_OMX_TARGET_ZYNQ_USCALE_PLUS
 static gboolean
 zynq_seamless_output_transition (GstOMXVideoEnc * self, GstOMXPort * port)
 {
@@ -2010,7 +2011,7 @@ zynq_seamless_output_transition (GstOMXVideoEnc * self, GstOMXPort * port)
   if (!gst_omx_video_port_support_resolution (port,
           new.nFrameWidth, new.nFrameHeight)) {
     GST_DEBUG_OBJECT (self,
-        "Output port does not support new resolution (%dx%d), can't do seamless transition",
+        "Output port does not support new resolution (%lux%lu), can't do seamless transition",
         new.nFrameWidth, new.nFrameHeight);
     return FALSE;
   }
@@ -2021,7 +2022,7 @@ zynq_seamless_output_transition (GstOMXVideoEnc * self, GstOMXPort * port)
       "only the output resolution changed; use seamless transition");
   return TRUE;
 }
-
+#endif
 static void
 gst_omx_video_enc_loop (GstOMXVideoEnc * self)
 {
