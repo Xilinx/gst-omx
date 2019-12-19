@@ -3517,7 +3517,9 @@ gst_omx_video_enc_handle_frame (GstVideoEncoder * encoder,
   GstOMXBuffer *buf;
   OMX_ERRORTYPE err;
   GstClockTimeDiff deadline;
+#ifdef USE_OMX_TARGET_ZYNQ_USCALE_PLUS
   gboolean starting = FALSE;
+#endif
 
   self = GST_OMX_VIDEO_ENC (encoder);
 
@@ -3547,7 +3549,9 @@ gst_omx_video_enc_handle_frame (GstVideoEncoder * encoder,
     GST_DEBUG_OBJECT (self, "Starting task");
     gst_pad_start_task (GST_VIDEO_ENCODER_SRC_PAD (self),
         (GstTaskFunction) gst_omx_video_enc_loop, self, NULL);
+#ifdef USE_OMX_TARGET_ZYNQ_USCALE_PLUS
     starting = TRUE;
+#endif
   }
 
   port = self->enc_in_port;
