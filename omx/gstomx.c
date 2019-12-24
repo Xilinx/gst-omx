@@ -2040,6 +2040,22 @@ omx_index_type_to_str (OMX_INDEXTYPE index)
       return "OMX_ALG_IndexConfigVideoMaxResolutionChange";
     case OMX_ALG_IndexParamVideoQuantizationTable:
       return "OMX_ALG_IndexParamVideoQuantizationTable";
+    case OMX_ALG_IndexParamVideoAccessUnitDelimiter:
+      return "OMX_ALG_IndexParamVideoAccessUnitDelimiter";
+    case OMX_ALG_IndexParamVideoBufferingPeriodSEI:
+      return "OMX_ALG_IndexParamVideoBufferingPeriodSEI";
+    case OMX_ALG_IndexParamVideoPictureTimingSEI:
+      return "OMX_ALG_IndexParamVideoPictureTimingSEI";
+    case OMX_ALG_IndexParamVideoRecoveryPointSEI:
+      return "OMX_ALG_IndexParamVideoRecoveryPointSEI";
+    case OMX_ALG_IndexParamVideoMasteringDisplayColourVolumeSEI:
+      return "OMX_ALG_IndexParamVideoMasteringDisplayColourVolumeSEI";
+    case OMX_ALG_IndexParamVideoContentLightLevelSEI:
+      return "OMX_ALG_IndexParamVideoContentLightLevelSEI";
+    case OMX_ALG_IndexConfigVideoRegionOfInterestByValue:
+      return "OMX_ALG_IndexConfigVideoRegionOfInterestByValue";
+    case OMX_ALG_IndexConfigVideoColorPrimaries:
+      return "OMX_ALG_IndexConfigVideoColorPrimaries";
     case OMX_ALG_IndexMaxEnum:
       return "OMX_ALG_IndexMaxEnum";
   }
