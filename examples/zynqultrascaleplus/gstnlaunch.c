@@ -70,7 +70,7 @@ typedef struct _GstScalableBranch
         g_print(FMT "\n", ## ARGS); \
     } while (0)
 
-void
+static void
 quit_app (GstNLaunchPlayer * thiz)
 {
   if (thiz->loop)
@@ -120,7 +120,7 @@ player_is_state (GstNLaunchPlayer * player, GstState state)
   return TRUE;
 }
 
-gboolean
+static gboolean
 set_branch_state (GstScalableBranch * branch, GstState state)
 {
   gboolean res = TRUE;
@@ -153,7 +153,7 @@ set_branch_state (GstScalableBranch * branch, GstState state)
   return res;
 }
 
-gboolean
+static gboolean
 set_player_state (GstNLaunchPlayer * player, GstState new_state)
 {
   GList *l;
@@ -335,7 +335,7 @@ message_cb (GstBus * bus, GstMessage * message, gpointer user_data)
   return TRUE;
 }
 
-void
+static void
 destroy_branch (gpointer data)
 {
   GstScalableBranch *branch = (GstScalableBranch *) data;
@@ -348,7 +348,7 @@ destroy_branch (gpointer data)
     g_signal_handler_disconnect (branch->pipeline, branch->deep_notify_id);
 }
 
-GstScalableBranch *
+static GstScalableBranch *
 add_branch (GstNLaunchPlayer * thiz, gchar * src_desc, gchar * branch_desc,
     gchar * sink_desc)
 {
@@ -471,9 +471,6 @@ error:
   goto done;
 }
 
-
-
-
 /* Process keyboard input */
 static gboolean
 handle_keyboard (GIOChannel * source, GIOCondition cond,
@@ -505,8 +502,8 @@ handle_keyboard (GIOChannel * source, GIOCondition cond,
   return TRUE;
 }
 
-void
-usage ()
+static void
+usage (void)
 {
   PRINT ("Available commands:\n"
       "  p - Toggle between Play and Pause\n" "  q - Quit");
