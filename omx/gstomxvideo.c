@@ -236,18 +236,15 @@ gst_omx_video_find_nearest_frame (GstElement * element, GstOMXBuffer * buf,
 OMX_U32
 gst_omx_video_calculate_framerate_q16 (GstVideoInfo * info)
 {
-  gint fps_n;
-
   g_assert (info);
 
-  /* For split-field interlace mode, the caps (and therefore @info here) will
-   * contain the actual video frame-rate but OMX API expects frame-rate to be
-   * the same as the field-rate so we multiply the FPS by 2 to get the
-   * field-rate.
-   */
-  fps_n = (GST_VIDEO_INFO_INTERLACE_MODE (info) ==
-      GST_VIDEO_INTERLACE_MODE_ALTERNATE) ? info->fps_n * 2 : info->fps_n;
-  return gst_util_uint64_scale_int (1 << 16, fps_n, info->fps_d);
+  if (!info->fps_d)
+    return 0;
+
+  /* OMX API expects frame rate to actually be the field rate, so twice
+   * the frame rate in interlace mode. */
+  return gst_util_uint64_scale_int (1 << 16, GST_VIDEO_INFO_FIELD_RATE_N (info),
+      info->fps_d);
 }
 
 gboolean

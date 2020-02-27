@@ -3050,8 +3050,14 @@ gst_omx_video_enc_set_interlacing_parameters (GstOMXVideoEnc * self,
         GST_VIDEO_FIELD_ORDER_BOTTOM_FIELD_FIRST)
       interlace_format_param.nFormat =
           OMX_ALG_InterlaceAlternateBottomFieldFirst;
-    else
+    else if (GST_VIDEO_INFO_FIELD_ORDER (info) ==
+        GST_VIDEO_FIELD_ORDER_BOTTOM_FIELD_FIRST)
       interlace_format_param.nFormat = OMX_ALG_InterlaceAlternateTopFieldFirst;
+    else {
+      GST_INFO_OBJECT (self,
+          "input field-order unspecified, assume top-field-first");
+      interlace_format_param.nFormat = OMX_ALG_InterlaceAlternateTopFieldFirst;
+    }
   } else {
     /* Caps templates should ensure this doesn't happen but just to be safe.. */
     GST_ERROR_OBJECT (self, "Video interlacing mode %s not supported",
@@ -3063,24 +3069,21 @@ gst_omx_video_enc_set_interlacing_parameters (GstOMXVideoEnc * self,
       (OMX_INDEXTYPE) OMX_ALG_IndexParamVideoInterlaceFormatCurrent,
       &interlace_format_param);
 
-  if (err == OMX_ErrorUnsupportedIndex) {
-    GST_WARNING_OBJECT (self,
-        "Setting interlace format parameter not supported by the component");
-  } else if (err == OMX_ErrorUnsupportedSetting) {
-    GST_WARNING_OBJECT (self,
-        "Setting interlace format %s not supported by the "
-        "component",
-        (interlace_format_param.nFormat ==
-            OMX_ALG_InterlaceAlternateTopFieldFirst) ? "top-field-first" :
-        "bottom-field-first");
-  } else if (err != OMX_ErrorNone) {
+  if (err != OMX_ErrorNone) {
     GST_ERROR_OBJECT (self,
-        "Failed to set interlace format: %s (0x%08x)",
-        gst_omx_error_to_string (err), err);
+        "Failed to set interlacing mode %s (%s) format: %s (0x%08x)",
+        gst_video_interlace_mode_to_string (info->interlace_mode),
+        interlace_format_param.nFormat ==
+        OMX_ALG_InterlaceAlternateTopFieldFirst ? "top-field-first" :
+        "bottom-field-first", gst_omx_error_to_string (err), err);
     return FALSE;
   } else {
-    GST_DEBUG_OBJECT (self, "Video interlacing mode %s set on component",
-        gst_video_interlace_mode_to_string (info->interlace_mode));
+    GST_DEBUG_OBJECT (self,
+        "Video interlacing mode %s (%s) set on component",
+        gst_video_interlace_mode_to_string (info->interlace_mode),
+        interlace_format_param.nFormat ==
+        OMX_ALG_InterlaceAlternateTopFieldFirst ? "top-field-first" :
+        "bottom-field-first");
   }
 
   return TRUE;
@@ -3184,9 +3187,8 @@ gst_omx_video_enc_set_format (GstVideoEncoder * encoder,
 #endif
 
   if (G_UNLIKELY (klass->cdata.hacks & GST_OMX_HACK_VIDEO_FRAMERATE_INTEGER)) {
-    gint fps_n = GST_VIDEO_INFO_FIELD_RATE_N (info);
-
-    port_def.format.video.xFramerate = fps_n ? (fps_n) / (info->fps_d) : 0;
+    port_def.format.video.xFramerate =
+        info->fps_d ? GST_VIDEO_INFO_FIELD_RATE_N (info) / (info->fps_d) : 0;
   } else {
     port_def.format.video.xFramerate =
         gst_omx_video_calculate_framerate_q16 (info);
@@ -3464,12 +3466,11 @@ gst_omx_video_enc_fill_buffer (GstOMXVideoEnc * self, GstBuffer * inbuf,
   gint stride = meta ? meta->stride[0] : info->stride[0];
 
 #ifndef USE_OMX_TARGET_ZYNQ_USCALE_PLUS
-  gint field_height = GST_VIDEO_INFO_FIELD_HEIGHT (info);
-
   //HACK: Seen that the change of resolution in OMX stack is async
   //we might receive buffers which are still having the previous resolution
   if (info->width != port_def->format.video.nFrameWidth ||
-      field_height != port_def->format.video.nFrameHeight) {
+      GST_VIDEO_INFO_FIELD_HEIGHT (info) !=
+      port_def->format.video.nFrameHeight) {
     GST_ERROR_OBJECT (self, "Width or height do not match");
     goto done;
   }
@@ -4067,6 +4068,13 @@ gst_omx_video_enc_handle_frame (GstVideoEncoder * encoder,
       buf->omx_buf->nTickCount = 0;
     }
 
+#ifdef USE_OMX_TARGET_ZYNQ_USCALE_PLUS
+    if (GST_VIDEO_BUFFER_IS_TOP_FIELD (frame->input_buffer))
+      buf->omx_buf->nFlags |= OMX_ALG_BUFFERFLAG_TOP_FIELD;
+    else if (GST_VIDEO_BUFFER_IS_BOTTOM_FIELD (frame->input_buffer))
+      buf->omx_buf->nFlags |= OMX_ALG_BUFFERFLAG_BOT_FIELD;
+#endif
+
     self->started = TRUE;
     err = gst_omx_port_release_buffer (port, buf);
     if (err != OMX_ErrorNone)
@@ -4416,7 +4424,6 @@ add_interlace_to_caps (GstOMXVideoEnc * self, GstCaps * caps)
   OMX_ERRORTYPE err;
   OMX_INTERLACEFORMATTYPE interlace_format_param;
   GstCaps *caps_alternate;
-  guint i;
 
   if (gst_caps_is_empty (caps))
     /* No caps to add to */
@@ -4428,8 +4435,12 @@ add_interlace_to_caps (GstOMXVideoEnc * self, GstCaps * caps)
   err = gst_omx_component_get_parameter (self->enc,
       OMX_ALG_IndexParamVideoInterlaceFormatSupported, &interlace_format_param);
 
-  if (err != OMX_ErrorNone)
+  if (err != OMX_ErrorNone) {
+    GST_WARNING_OBJECT (self,
+        "Failed to get OMX_ALG_IndexParamVideoInterlaceFormatSupported %s (0x%08x)",
+        gst_omx_error_to_string (err), err);
     return caps;
+  }
 
   if (!(interlace_format_param.nFormat &
           OMX_ALG_InterlaceAlternateTopFieldFirst)
@@ -4441,11 +4452,8 @@ add_interlace_to_caps (GstOMXVideoEnc * self, GstCaps * caps)
    * with the caps feature. */
   caps_alternate = gst_caps_copy (caps);
 
-  /* TODO: use helper code once available: https://gitlab.freedesktop.org/gstreamer/gstreamer/merge_requests/51 */
-  for (i = 0; i < gst_caps_get_size (caps_alternate); i++) {
-    gst_caps_set_features (caps_alternate, i,
-        gst_caps_features_new (GST_CAPS_FEATURE_FORMAT_INTERLACED, NULL));
-  }
+  gst_caps_set_features_simple (caps_alternate,
+      gst_caps_features_new (GST_CAPS_FEATURE_FORMAT_INTERLACED, NULL));
 
   caps = gst_caps_merge (caps, caps_alternate);
 #endif // USE_OMX_TARGET_ZYNQ_USCALE_PLUS
