@@ -3640,8 +3640,8 @@ gst_omx_video_dec_handle_frame (GstVideoDecoder * decoder,
 
     first_ouput_buffer = FALSE;
   }
-  if (!subframe_mode || last_subframe)
-    gst_video_codec_frame_unref (frame);
+
+  gst_video_codec_frame_unref (frame);
 
   GST_DEBUG_OBJECT (self, "Passed frame to component");
 
