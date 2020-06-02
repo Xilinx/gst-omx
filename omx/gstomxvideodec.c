@@ -1449,7 +1449,7 @@ add_caps_memory_feature (GstCaps * caps, const gchar * feature)
 }
 
 static GstVideoCodecState *
-gst_omx_vide_dec_set_output_state (GstOMXVideoDec * self, GstVideoFormat fmt)
+gst_omx_video_dec_set_output_state (GstOMXVideoDec * self, GstVideoFormat fmt)
 {
   OMX_PARAM_PORTDEFINITIONTYPE port_def;
   guint frame_height;
@@ -1740,6 +1740,7 @@ gst_omx_video_dec_reconfigure_output_port (GstOMXVideoDec * self)
       format, interlace_mode, port_def.format.video.nFrameWidth,
       frame_height, self->input_state);
 
+
   if (!gst_video_decoder_negotiate (GST_VIDEO_DECODER (self))) {
     gst_video_codec_state_unref (state);
     GST_ERROR_OBJECT (self, "Failed to negotiate");
@@ -2003,7 +2004,7 @@ set_output_state (GstOMXVideoDec * self, GstOMXPort * port)
     goto out;
   }
 
-  state = gst_omx_vide_dec_set_output_state (self, format);
+  state = gst_omx_video_dec_set_output_state (self, format);
 
   /* Take framerate and pixel-aspect-ratio from sinkpad caps */
 
