@@ -1492,11 +1492,6 @@ gst_omx_video_dec_reconfigure_output_port (GstOMXVideoDec * self)
   GstVideoCodecState *state;
   OMX_PARAM_PORTDEFINITIONTYPE port_def;
   GstVideoFormat format;
-  GstVideoInterlaceMode interlace_mode;
-  guint frame_height;
-
-  /* At this point the decoder output port is disabled */
-  interlace_mode = gst_omx_video_dec_get_output_interlace_info (self);
 
 #if defined (HAVE_GST_GL)
   {
@@ -1723,23 +1718,7 @@ gst_omx_video_dec_reconfigure_output_port (GstOMXVideoDec * self)
     goto done;
   }
 
-  frame_height = port_def.format.video.nFrameHeight;
-  /* OMX's frame height is actually the field height in alternate mode
-   * while it's always the full frame height in gst. */
-  if (interlace_mode == GST_VIDEO_INTERLACE_MODE_ALTERNATE)
-    frame_height *= 2;
-
-  GST_DEBUG_OBJECT (self,
-      "Setting output state: format %s (%d), width %u, height %u",
-      gst_video_format_to_string (format),
-      port_def.format.video.eColorFormat,
-      (guint) port_def.format.video.nFrameWidth, frame_height);
-
-  state =
-      gst_video_decoder_set_interlaced_output_state (GST_VIDEO_DECODER (self),
-      format, interlace_mode, port_def.format.video.nFrameWidth,
-      frame_height, self->input_state);
-
+  state = gst_omx_video_dec_set_output_state (self, format);
 
   if (!gst_video_decoder_negotiate (GST_VIDEO_DECODER (self))) {
     gst_video_codec_state_unref (state);
