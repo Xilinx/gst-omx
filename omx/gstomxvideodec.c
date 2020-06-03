@@ -1516,16 +1516,7 @@ gst_omx_video_dec_reconfigure_output_port (GstOMXVideoDec * self)
       gst_omx_port_get_port_definition (self->dec_out_port, &port_def);
       GST_VIDEO_DECODER_STREAM_LOCK (self);
 
-      frame_height = port_def.format.video.nFrameHeight;
-      /* OMX's frame height is actually the field height in alternate mode
-       * while it's always the full frame height in gst. */
-      if (interlace_mode == GST_VIDEO_INTERLACE_MODE_ALTERNATE)
-        frame_height *= 2;
-
-      state =
-          gst_video_decoder_set_interlaced_output_state (GST_VIDEO_DECODER
-          (self), GST_VIDEO_FORMAT_RGBA, interlace_mode,
-          port_def.format.video.nFrameWidth, frame_height, self->input_state);
+      state = gst_omx_video_dec_set_output_state (self, GST_VIDEO_FORMAT_RGBA);
 
       /* at this point state->caps is NULL */
       if (state->caps)
