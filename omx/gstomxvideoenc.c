@@ -2913,6 +2913,11 @@ gst_omx_video_enc_configure_input_buffer (GstOMXVideoEnc * self,
           ((port_def.format.video.nFrameHeight + 1) / 2));
       break;
 
+    case OMX_COLOR_FormatL8:
+      port_def.nBufferSize =
+          port_def.format.video.nStride * port_def.format.video.nFrameHeight;
+      break;
+
     default:
       GST_ERROR_OBJECT (self, "Unsupported port format %x",
           port_def.format.video.eColorFormat);
@@ -3539,6 +3544,9 @@ gst_omx_video_enc_set_format (GstVideoEncoder * encoder,
         break;
       case GST_VIDEO_FORMAT_ARGB:
         port_def.format.video.eColorFormat = OMX_COLOR_Format32bitBGRA8888;
+        break;
+      case GST_VIDEO_FORMAT_GRAY8:
+        port_def.format.video.eColorFormat = OMX_COLOR_FormatL8;
         break;
       default:
         GST_ERROR_OBJECT (self, "Unsupported format %s",
@@ -4766,6 +4774,7 @@ filter_supported_formats (GList * negotiation_map)
       case GST_VIDEO_FORMAT_NV12_10LE32:
       case GST_VIDEO_FORMAT_NV16:
       case GST_VIDEO_FORMAT_NV16_10LE32:
+      case GST_VIDEO_FORMAT_GRAY8:
         //case GST_VIDEO_FORMAT_ABGR:
         //case GST_VIDEO_FORMAT_ARGB:
         cur = g_list_next (cur);
